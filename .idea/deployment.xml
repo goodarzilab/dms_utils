@@ -5,8 +5,8 @@
       <paths name="rumi">
         <serverdata>
           <mappings>
-            <mapping deploy="/rumi/shams/khorms/programs/dms_utils" local="$PROJECT_DIR$" web="/" />
-            <mapping local="" />
+            <mapping deploy="dms_utils" local="$PROJECT_DIR$" web="/" />
+            <mapping deploy="" local="" />
           </mappings>
         </serverdata>
       </paths>
