@@ -960,3 +960,4 @@ def calculate_mediat_modifications_per_transcript(mut_counts_array_loc,
             median_modifications_per_nt_loc[i, nt_id, :] = median_mut_count.astype(np.int)
 
     return median_modifications_per_nt_loc
+
