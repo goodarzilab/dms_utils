@@ -1028,9 +1028,13 @@ def ConstraintFoldDraw(ref_filename, clustMuFile, expUp, expDown, norm_bases):
             dot_filename
         draw_command = '/rumi/shams/khorms/programs/RNAstructure/exe/draw ' + dot_filename + ' ' + \
             pic_filename + ' -S ' + const_filename
-        os.system(fold_command)
-        os.system(ct2dot_command)
-        os.system(draw_command)
+        add_database_command = "export DATAPATH=/rumi/shams/khorms/programs/RNAstructure/data_tables"
+        full_command = "%s ; %s ; %s ; %s" % (add_database_command, fold_command,
+                                              ct2dot_command, draw_command)
+        os.system(full_command)
+        # os.system(fold_command)
+        # os.system(ct2dot_command)
+        # os.system(draw_command)
 
         # Delete unnecessary files
         os.system('rm ' + const_filename)
