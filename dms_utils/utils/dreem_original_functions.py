@@ -2,28 +2,34 @@
 
 
 
-def GenerateBitVector_Paired(mate1, mate2, refs_seq, phred_qscore,
+def GenerateBitVector_Paired(mate1, mate2, start, end, refs_seq, phred_qscore,
                              cov_bases, info_bases, mod_bases, mut_bases,
-                             delmut_bases, num_reads, files):
+                             delmut_bases, num_reads, files,
+                             qscore_cutoff, nomut_bit, ambig_info,
+                             sur_bases, del_bit, miss_info, bases):
     """
     Create a bitvector for paired end sequencing.
     """
     bitvector_mate1 = Convert_Read(mate1, refs_seq, phred_qscore,
-                                   QSCORE_CUTOFF, nomut_bit, ambig_info,
-                                   SUR_BASES, del_bit, miss_info)
+                                   qscore_cutoff, nomut_bit, ambig_info,
+                                   sur_bases, del_bit, miss_info)
     bitvector_mate2 = Convert_Read(mate2, refs_seq, phred_qscore,
-                                   QSCORE_CUTOFF, nomut_bit, ambig_info,
-                                   SUR_BASES, del_bit, miss_info)
-    bit_vector = Combine_Mates(bitvector_mate1, bitvector_mate2)
+                                   qscore_cutoff, nomut_bit, ambig_info,
+                                   sur_bases, del_bit, miss_info)
+    bit_vector = Combine_Mates(bitvector_mate1, bitvector_mate2,
+                               bases, nomut_bit, ambig_info)
     Plotting_Variables(mate1.QNAME, mate1.RNAME, bit_vector, start, end,
                        cov_bases, info_bases, mod_bases, mut_bases,
-                       delmut_bases, num_reads, files)
+                       delmut_bases, num_reads, files,
+                       miss_info, ambig_info, bases, del_bit)
 
 
 def Process_SamFile(sam_file, paired, refs_seq, start, end,
                     cov_bases, info_bases, mod_bases,
                     mut_bases, delmut_bases, num_reads, files,
-                    ref_name, phred_qscore):
+                    ref_name, phred_qscore,
+                    qscore_cutoff, nomut_bit, ambig_info,
+                    sur_bases, del_bit, miss_info, bases):
     """
     Read SAM file and generate bit vectors.
     """
@@ -42,10 +48,12 @@ def Process_SamFile(sam_file, paired, refs_seq, start, end,
                     mate1.RNAME == mate2.RNAME and mate1.RNEXT == "="
                 assert mate1.QNAME == mate2.QNAME and mate1.MAPQ == mate2.MAPQ
                 if mate1.RNAME == ref_name:
-                    GenerateBitVector_Paired(mate1, mate2, refs_seq,
+                    GenerateBitVector_Paired(mate1, mate2, start, end, refs_seq,
                                              phred_qscore, cov_bases,
                                              info_bases, mod_bases, mut_bases,
-                                             delmut_bases, num_reads, files)
+                                             delmut_bases, num_reads, files,
+                                             qscore_cutoff, nomut_bit, ambig_info,
+                                             sur_bases, del_bit, miss_info, bases)
             else:
                 line = next(sam_fileobj)
                 line = line.strip().split()
@@ -54,7 +62,9 @@ def Process_SamFile(sam_file, paired, refs_seq, start, end,
                     GenerateBitVector_Single(mate, refs_seq, phred_qscore,
                                              cov_bases, info_bases, mod_bases,
                                              mut_bases, delmut_bases,
-                                             num_reads, files, start, end)
+                                             num_reads, files, start, end,
+                                             qscore_cutoff, nomut_bit, ambig_info,
+                                             sur_bases, del_bit, miss_info, bases)
         except StopIteration:
             break
     sam_fileobj.close()
@@ -84,8 +94,8 @@ class Mate():
 
 
 def Convert_Read(mate, refs_seq, phred_qscore,
-                 QSCORE_CUTOFF, nomut_bit, ambig_info,
-                 SUR_BASES, del_bit, miss_info):
+                 qscore_cutoff, nomut_bit, ambig_info,
+                 sur_bases, del_bit, miss_info):
     """
     Convert a read's sequence to a bit vector of 0s & 1s and substituted bases
     Args:
@@ -109,7 +119,7 @@ def Convert_Read(mate, refs_seq, phred_qscore,
 
         if desc == 'M':  # Match or mismatch
             for k in range(length):  # Each base
-                if phred_qscore[q_scores[j]] >= QSCORE_CUTOFF:
+                if phred_qscore[q_scores[j]] >= qscore_cutoff:
                     bitvector_mate[i] = read_seq[j] \
                         if read_seq[j] != ref_seq[i - 1] else nomut_bit
                 else:  # < Qscore cutoff
@@ -122,7 +132,7 @@ def Convert_Read(mate, refs_seq, phred_qscore,
                 bitvector_mate[i] = ambig_info
                 i += 1  # Update ref index
             ambig = Calc_Ambig_Reads(ref_seq, i, length,
-                                                         SUR_BASES)
+                                                         sur_bases)
             bitvector_mate[i] = ambig_info if ambig else del_bit
             i += 1  # Update ref index
 
@@ -143,7 +153,8 @@ def Convert_Read(mate, refs_seq, phred_qscore,
     return bitvector_mate
 
 
-def Combine_Mates(bitvector_mate1, bitvector_mate2):
+def Combine_Mates(bitvector_mate1, bitvector_mate2,
+                  bases, nomut_bit, ambig_info):
     """
     Combine bit vectors from mate 1 and mate 2 into a single read's bit vector.
     0 has preference. Ambig info does not. Diff muts in the two mates are
@@ -180,7 +191,8 @@ def Combine_Mates(bitvector_mate1, bitvector_mate2):
 
 def Plotting_Variables(q_name, ref, bit_vector, start, end, cov_bases,
                        info_bases, mod_bases, mut_bases, delmut_bases,
-                       num_reads, files):
+                       num_reads, files,
+                       miss_info, ambig_info, bases, del_bit):
     """
     Create final bit vector in relevant coordinates and all the
     variables needed for plotting
@@ -216,16 +228,19 @@ def Plotting_Variables(q_name, ref, bit_vector, start, end, cov_bases,
 def GenerateBitVector_Single(mate, refs_seq, phred_qscore,
                              cov_bases, info_bases, mod_bases,
                              mut_bases, delmut_bases, num_reads, files,
-                             start, end):
+                             start, end,
+                            qscore_cutoff, nomut_bit, ambig_info,
+                            sur_bases, del_bit, miss_info, bases):
     """
     Create a bitvector for single end sequencing.
     """
     bit_vector = Convert_Read(mate, refs_seq, phred_qscore,
-                 QSCORE_CUTOFF, nomut_bit, ambig_info,
-                 SUR_BASES, del_bit, miss_info)
+                 qscore_cutoff, nomut_bit, ambig_info,
+                 sur_bases, del_bit, miss_info)
     Plotting_Variables(mate.QNAME, mate.RNAME, bit_vector, start, end,
                        cov_bases, info_bases, mod_bases, mut_bases,
-                       delmut_bases, num_reads, files)
+                       delmut_bases, num_reads, files,
+                       miss_info, ambig_info, bases, del_bit)
 
 
 def Parse_CIGAR(cigar_string):
@@ -268,3 +283,24 @@ def Calc_Ambig_Reads(ref_seq, i, length, num_surBases):
         if sur_seq == orig_sur_seq:
             return True
     return False
+
+
+def Parse_PhredFile(qscore_filename):
+    """
+    Parse a file containing Phred Q Score info
+    Args:
+        qscore_filename (string): Path to Q Score file
+    Returns:
+        phred_qscore (dict): Mapping of ASCII symbol to Phred Q Score
+    """
+    phred_qscore = {}
+    qscore_file = open(qscore_filename)
+    qscore_file.readline()  # Ignore header line
+    for line in qscore_file:
+        line = line.strip().split()
+        score, symbol = int(line[0]), line[1]
+        phred_qscore[symbol] = score
+    qscore_file.close()
+    return phred_qscore
+
+
