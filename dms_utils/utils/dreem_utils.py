@@ -4,22 +4,8 @@ import matplotlib.pyplot as plt
 import scipy
 import dms_utils.utils.utils as utils
 import dms_utils.utils.dreem_original_functions as dof
+import time
 
-
-def Parse_FastaFile(fasta_file):
-    from Bio import SeqIO
-    refs_seq = {}
-    with open(fasta_file, 'rU') as handle:
-        for record in SeqIO.parse(handle, 'fasta'):
-            refs_seq[record.id] = str(record.seq)
-    return refs_seq
-
-
-#     # Inputs for Step 3 - EM Clustering
-#     INFO_THRESH = 0.05  # Threshold for informative bits
-#     CONV_CUTOFF = 0.5  # Diff in log like for convergence
-#     NUM_RUNS = 10  # Number of independent EM runs per K
-#     struct = True  # Run structure prediction or not
 
 
 def launch_stemAC():
@@ -58,7 +44,7 @@ def launch_something(sample_name, ref_file, ref_name,
                      sam_file, out_folder, qscore_file,
                      start = np.nan, end = np.nan,
                      paired = False):
-    refs_seq = Parse_FastaFile(ref_file)
+    refs_seq = dof.Parse_FastaFile(ref_file)
     seq_of_interest = refs_seq[ref_name]
     phred_qscore = dof.Parse_PhredFile(qscore_file)
     start, end, miss_info, ambig_info, \
@@ -79,8 +65,11 @@ def launch_something(sample_name, ref_file, ref_name,
 
     close_open_files(files)
 
-
-
+    INFO_THRESH, SIG_THRESH, inc_TG, NORM_PERC_BASES, \
+    NUM_RUNS, MIN_ITS, MAX_K, CONV_CUTOFF, CPUS, struct = define_global_variables_within_EM_clustering()
+    launch_EM_clustering(sample_name, ref_name, start, end, out_folder, ref_file,
+                         INFO_THRESH, SIG_THRESH, inc_TG, NORM_PERC_BASES,
+                         NUM_RUNS, MIN_ITS, MAX_K, CONV_CUTOFF, CPUS, struct)
 
 
 #def write_ref_files():
@@ -129,69 +118,76 @@ def compute_bit_vectors(sam_file, paired, refs_seq, start, end,
                     sur_bases, del_bit, miss_info, bases)
 
 
-#def define_global_variables_within_EM_clustering():
+def define_global_variables_within_EM_clustering(INFO_THRESH = 0.05,
+                                                 SIG_THRESH = 0.005, # see the main paper text
+                                                 inc_TG = False,
+                                                 # The DMS signal is normalized such that the median of the top ten most-reactive positions is set to 1.0
+                                                NORM_PERC_BASES = 10,
+                                                NUM_RUNS = 2,
+                                                MIN_ITS = 10, # change it depending on how many iterations do you want to do
+                                                MAX_K = 2, # Max clusters to work on
+                                                CONV_CUTOFF = 0.5,
+                                                 CPUS = 2,
+                                                 struct = True
+                                                 ):
+    return INFO_THRESH, SIG_THRESH, inc_TG, NORM_PERC_BASES, \
+           NUM_RUNS, MIN_ITS, MAX_K, CONV_CUTOFF, CPUS, struct
 
-#
-# def launch_EM_clustering():
-#     for ref in refs_seq:  # Each seq in the ref genome
-#
-#         if ref != ref_name:
-#             continue
-#
-#         start_time = time.time()
-#
-#         bvfile_basename = '{}_{}_{}_{}'.format(sample_name, ref, START, END)
-#         outplot_dir = outfiles_dir + bvfile_basename + '/'
-#         if not os.path.exists(outplot_dir):
-#             os.makedirs(outplot_dir)
-#         else:  # Folder exists
-#             if os.path.exists(outplot_dir + 'log.txt'):  # Log file exists
-#                 print('EM Clustering already done for', bvfile_basename)
-#                 return
-#
-#         wind_size = int(END) - int(START)
-#         norm_bases = int((wind_size * NORM_PERC_BASES) / 100)
-#
-#         # Read the bit vector file and do the filtering
-#         input_file = output_dir + '/BitVector_Files/' + bvfile_basename + \
-#             '_bitvectors.txt'
-#         X = EM_Files.Load_BitVectors(input_file, INFO_THRESH, SIG_THRESH,
-#                                      inc_TG, output_dir)
-#
-#         K = 1  # Number of clusters
-#         cur_BIC = float('inf')  # Initialize BIC
-#         BIC_failed = False  # While test is not passed
-#         while not BIC_failed and K <= MAX_K:
-#             print('Working on K =', K)
-#
-#             RUNS = NUM_RUNS if K != 1 else 1  # Only 1 Run for K=1
-#             ITS = MIN_ITS if K != 1 else 10  # Only 10 iters for K=1
-#
-#             for run in range(1, RUNS + 1):
-#                 print('Run number:', run)
-#                 Run_EMJobs.Run_EMJob(X, bvfile_basename, ITS, INFO_THRESH,
-#                                      CONV_CUTOFF, SIG_THRESH,
-#                                      outplot_dir, K, CPUS, run)
-#
-#             # Processing of results from the EM runs
-#             EM_CombineRuns.Post_Process(bvfile_basename, K, RUNS,
-#                                         cur_BIC, norm_bases, struct,
-#                                         input_dir, outplot_dir)
-#
-#             # Check BIC
-#             latest_BIC = EM_CombineRuns.Collect_BestBIC(bvfile_basename, K,
-#                                                         outplot_dir)
-#             if latest_BIC > cur_BIC:  # BIC test has failed
-#                 BIC_failed = True
-#             cur_BIC = latest_BIC  # Update BIC
-#
-#             K += 1  # Move on to next K
-#
-#         end_time = time.time()
-#         time_taken = round((end_time - start_time) / 60, 2)
-#         print('Time taken:', time_taken, 'mins')
-#
-#         # Write params to log file
-#         EM_Plots.Log_File(bvfile_basename, NUM_RUNS, MIN_ITS,
-#                           CONV_CUTOFF, INFO_THRESH, SIG_THRESH, inc_TG,
-#                           norm_bases, K - 2, time_taken, outplot_dir)
+
+
+def launch_EM_clustering(sample_name, name, start, end, out_folder, ref_file,
+                         INFO_THRESH, SIG_THRESH, inc_TG, NORM_PERC_BASES,
+                         NUM_RUNS, MIN_ITS, MAX_K, CONV_CUTOFF, CPUS, struct):
+        bvfile_basename = '{}_{}_{}_{}'.format(sample_name, name, start, end)
+        outplot_dir = os.path.join(out_folder, bvfile_basename) + '/'
+        if not os.path.exists(outplot_dir):
+            os.makedirs(outplot_dir)
+        else:  # Folder exists
+            if os.path.exists(outplot_dir + 'log.txt'):  # Log file exists
+                print('EM Clustering already done for', bvfile_basename)
+                return
+
+        wind_size = int(end) - int(start)
+        norm_bases = int((wind_size * NORM_PERC_BASES) / 100)
+
+        # Read the bit vector file and do the filtering
+        input_file = os.path.join(out_folder, bvfile_basename + '_bitvectors.txt')
+
+        X = dof.Load_BitVectors(input_file, INFO_THRESH, SIG_THRESH,
+                                     inc_TG, out_folder)
+
+        K = 1  # Number of clusters
+        cur_BIC = float('inf')  # Initialize BIC
+        BIC_failed = False  # While test is not passed
+        while not BIC_failed and K <= MAX_K:
+            print('Working on K =', K)
+
+            RUNS = NUM_RUNS if K != 1 else 1  # Only 1 Run for K=1
+            ITS = MIN_ITS if K != 1 else 10  # Only 10 iters for K=1
+
+            for run in range(1, RUNS + 1):
+                print('Run number:', run)
+                dof.Run_EMJob(X, bvfile_basename, ITS,
+                                     CONV_CUTOFF,
+                                     outplot_dir, K, CPUS, run)
+
+            # Processing of results from the EM runs
+            input_dir = ''
+            dof.Post_Process(bvfile_basename, ref_file, K, RUNS,
+                                        cur_BIC, norm_bases, struct,
+                                        input_dir, outplot_dir)
+
+            # Check BIC
+            latest_BIC = dof.Collect_BestBIC(bvfile_basename, K,
+                                                        outplot_dir)
+            if latest_BIC > cur_BIC:  # BIC test has failed
+                BIC_failed = True
+            cur_BIC = latest_BIC  # Update BIC
+
+            K += 1  # Move on to next K
+
+        # Write params to log file
+        time_taken = 0
+        dof.Log_File(bvfile_basename, NUM_RUNS, MIN_ITS,
+                          CONV_CUTOFF, INFO_THRESH, SIG_THRESH, inc_TG,
+                          norm_bases, K - 2, time_taken, outplot_dir)
