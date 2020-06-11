@@ -35,12 +35,32 @@ def Create_FastaFile(filename, ref_name, seq):
     outfile.write(seq + '\n')
     outfile.close()
 
+def GenerateBitVector_Single(mate, refs_seq, phred_qscore,
+                             cov_bases, info_bases, mod_bases,
+                             mut_bases, delmut_bases, num_reads, files,
+                             start, end,
+                            qscore_cutoff, nomut_bit, ambig_info,
+                            sur_bases, del_bit, miss_info, bases,
+                             ref_seq, masked_postions):
+    """
+    Create a bitvector for single end sequencing.
+    """
+    bit_vector = Convert_Read(mate, refs_seq, phred_qscore,
+                 qscore_cutoff, nomut_bit, ambig_info,
+                 sur_bases, del_bit, miss_info)
+    Plotting_Variables(mate.QNAME, mate.RNAME, bit_vector, start, end,
+                       cov_bases, info_bases, mod_bases, mut_bases,
+                       delmut_bases, num_reads, files,
+                       miss_info, ambig_info, bases, del_bit,
+                       ref_seq, masked_postions)
+
 
 def GenerateBitVector_Paired(mate1, mate2, start, end, refs_seq, phred_qscore,
                              cov_bases, info_bases, mod_bases, mut_bases,
                              delmut_bases, num_reads, files,
                              qscore_cutoff, nomut_bit, ambig_info,
-                             sur_bases, del_bit, miss_info, bases):
+                             sur_bases, del_bit, miss_info, bases,
+                             ref_seq, masked_postions):
     """
     Create a bitvector for paired end sequencing.
     """
@@ -55,7 +75,8 @@ def GenerateBitVector_Paired(mate1, mate2, start, end, refs_seq, phred_qscore,
     Plotting_Variables(mate1.QNAME, mate1.RNAME, bit_vector, start, end,
                        cov_bases, info_bases, mod_bases, mut_bases,
                        delmut_bases, num_reads, files,
-                       miss_info, ambig_info, bases, del_bit)
+                       miss_info, ambig_info, bases, del_bit,
+                       ref_seq, masked_postions)
 
 
 def Process_SamFile(sam_file, paired, refs_seq, start, end,
@@ -63,7 +84,8 @@ def Process_SamFile(sam_file, paired, refs_seq, start, end,
                     mut_bases, delmut_bases, num_reads, files,
                     ref_name, phred_qscore,
                     qscore_cutoff, nomut_bit, ambig_info,
-                    sur_bases, del_bit, miss_info, bases):
+                    sur_bases, del_bit, miss_info, bases,
+                    ref_seq, masked_postions):
     """
     Read SAM file and generate bit vectors.
     """
@@ -87,7 +109,8 @@ def Process_SamFile(sam_file, paired, refs_seq, start, end,
                                              info_bases, mod_bases, mut_bases,
                                              delmut_bases, num_reads, files,
                                              qscore_cutoff, nomut_bit, ambig_info,
-                                             sur_bases, del_bit, miss_info, bases)
+                                             sur_bases, del_bit, miss_info, bases,
+                                             ref_seq, masked_postions)
             else:
                 line = next(sam_fileobj)
                 line = line.strip().split()
@@ -98,7 +121,8 @@ def Process_SamFile(sam_file, paired, refs_seq, start, end,
                                              mut_bases, delmut_bases,
                                              num_reads, files, start, end,
                                              qscore_cutoff, nomut_bit, ambig_info,
-                                             sur_bases, del_bit, miss_info, bases)
+                                             sur_bases, del_bit, miss_info, bases,
+                                             ref_seq, masked_postions)
         except StopIteration:
             break
     sam_fileobj.close()
@@ -226,7 +250,8 @@ def Combine_Mates(bitvector_mate1, bitvector_mate2,
 def Plotting_Variables(q_name, ref, bit_vector, start, end, cov_bases,
                        info_bases, mod_bases, mut_bases, delmut_bases,
                        num_reads, files,
-                       miss_info, ambig_info, bases, del_bit):
+                       miss_info, ambig_info, bases, del_bit,
+                       ref_seq, masked_postions):
     """
     Create final bit vector in relevant coordinates and all the
     variables needed for plotting
@@ -242,39 +267,25 @@ def Plotting_Variables(q_name, ref, bit_vector, start, end, cov_bases,
         if pos not in bit_vector:  # Pos not covered by the read
             read_bit = miss_info
         else:
-            read_bit = bit_vector[pos]
-            cov_bases[ref][pos] += 1
-            if read_bit != ambig_info:
+            if pos in masked_postions:
                 info_bases[ref][pos] += 1
-            if read_bit in bases:  # Mutation
-                mod_bases[ref][read_bit][pos] += 1
-                mut_bases[ref][pos] += 1
-                delmut_bases[ref][pos] += 1
-            elif read_bit == del_bit:  # Deletion
-                delmut_bases[ref][pos] += 1
+                read_bit = '0'
+            else:
+                read_bit = bit_vector[pos]
+                cov_bases[ref][pos] += 1
+                if read_bit != ambig_info:
+                    info_bases[ref][pos] += 1
+                if read_bit in bases:  # Mutation
+                    mod_bases[ref][read_bit][pos] += 1
+                    mut_bases[ref][pos] += 1
+                    delmut_bases[ref][pos] += 1
+                elif read_bit == del_bit:  # Deletion
+                    delmut_bases[ref][pos] += 1
         bit_string += read_bit
     # Write bit vector to output text file
     n_mutations = str(float(sum(bit.isalpha() for bit in bit_string)))
     if not bit_string.count('.') == len(bit_string):  # Not all '.'
         files[ref].write(q_name + '\t' + bit_string + '\t' + n_mutations + '\n')
-
-
-def GenerateBitVector_Single(mate, refs_seq, phred_qscore,
-                             cov_bases, info_bases, mod_bases,
-                             mut_bases, delmut_bases, num_reads, files,
-                             start, end,
-                            qscore_cutoff, nomut_bit, ambig_info,
-                            sur_bases, del_bit, miss_info, bases):
-    """
-    Create a bitvector for single end sequencing.
-    """
-    bit_vector = Convert_Read(mate, refs_seq, phred_qscore,
-                 qscore_cutoff, nomut_bit, ambig_info,
-                 sur_bases, del_bit, miss_info)
-    Plotting_Variables(mate.QNAME, mate.RNAME, bit_vector, start, end,
-                       cov_bases, info_bases, mod_bases, mut_bases,
-                       delmut_bases, num_reads, files,
-                       miss_info, ambig_info, bases, del_bit)
 
 
 def Parse_CIGAR(cigar_string):

@@ -42,6 +42,7 @@ def close_open_files(files):
 
 def launch_something(sample_name, ref_file, ref_name,
                      sam_file, out_folder, qscore_file,
+                     masked_postions = [],
                      start = np.nan, end = np.nan,
                      paired = False):
     refs_seq = dof.Parse_FastaFile(ref_file)
@@ -61,7 +62,8 @@ def launch_something(sample_name, ref_file, ref_name,
                     mut_bases, delmut_bases, num_reads, files,
                     ref_name, phred_qscore,
                     qscore_cutoff, nomut_bit, ambig_info,
-                    sur_bases, del_bit, miss_info, bases)
+                    sur_bases, del_bit, miss_info, bases,
+                    refs_seq[ref_name], masked_postions)
 
     close_open_files(files)
 
@@ -109,13 +111,15 @@ def compute_bit_vectors(sam_file, paired, refs_seq, start, end,
                     mut_bases, delmut_bases, num_reads, files,
                     ref_name, phred_qscore,
                     qscore_cutoff, nomut_bit, ambig_info,
-                    sur_bases, del_bit, miss_info, bases):
+                    sur_bases, del_bit, miss_info, bases,
+                    ref_seq, masked_postions):
     dof.Process_SamFile(sam_file, paired, refs_seq, start, end,
                     cov_bases, info_bases, mod_bases,
                     mut_bases, delmut_bases, num_reads, files,
                     ref_name, phred_qscore,
                     qscore_cutoff, nomut_bit, ambig_info,
-                    sur_bases, del_bit, miss_info, bases)
+                    sur_bases, del_bit, miss_info, bases,
+                    ref_seq, masked_postions)
 
 
 def define_global_variables_within_EM_clustering(INFO_THRESH = 0.05,
