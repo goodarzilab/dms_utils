@@ -44,7 +44,12 @@ def launch_something(sample_name, ref_file, ref_name,
                      sam_file, out_folder, qscore_file,
                      masked_postions = [],
                      start = np.nan, end = np.nan,
-                     paired = False):
+                     paired = False,
+                     NUM_RUNS=2,
+                     MIN_ITS=10,
+                     CONV_CUTOFF=0.5,
+                     CPUS=2
+                     ):
     refs_seq = dof.Parse_FastaFile(ref_file)
     seq_of_interest = refs_seq[ref_name]
     phred_qscore = dof.Parse_PhredFile(qscore_file)
@@ -68,7 +73,12 @@ def launch_something(sample_name, ref_file, ref_name,
     close_open_files(files)
 
     INFO_THRESH, SIG_THRESH, inc_TG, NORM_PERC_BASES, \
-    NUM_RUNS, MIN_ITS, MAX_K, CONV_CUTOFF, CPUS, struct = define_global_variables_within_EM_clustering()
+    NUM_RUNS, MIN_ITS, MAX_K, CONV_CUTOFF, CPUS, struct = define_global_variables_within_EM_clustering(
+                                                                                                NUM_RUNS=2,
+                                                                                                MIN_ITS=10,
+                                                                                                CONV_CUTOFF = 0.5,
+                                                                                                CPUS = 2
+                                                                                                )
     launch_EM_clustering(sample_name, ref_name, start, end, out_folder, ref_file,
                          INFO_THRESH, SIG_THRESH, inc_TG, NORM_PERC_BASES,
                          NUM_RUNS, MIN_ITS, MAX_K, CONV_CUTOFF, CPUS, struct)
