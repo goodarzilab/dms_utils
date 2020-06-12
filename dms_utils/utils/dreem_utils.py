@@ -74,10 +74,10 @@ def launch_something(sample_name, ref_file, ref_name,
 
     INFO_THRESH, SIG_THRESH, inc_TG, NORM_PERC_BASES, \
     NUM_RUNS, MIN_ITS, MAX_K, CONV_CUTOFF, CPUS, struct = define_global_variables_within_EM_clustering(
-                                                                                                NUM_RUNS=2,
-                                                                                                MIN_ITS=10,
-                                                                                                CONV_CUTOFF = 0.5,
-                                                                                                CPUS = 2
+                                                                                                NUM_RUNS=NUM_RUNS,
+                                                                                                MIN_ITS=MIN_ITS,
+                                                                                                CONV_CUTOFF = CONV_CUTOFF,
+                                                                                                CPUS = CPUS
                                                                                                 )
     launch_EM_clustering(sample_name, ref_name, start, end, out_folder, ref_file,
                          INFO_THRESH, SIG_THRESH, inc_TG, NORM_PERC_BASES,
