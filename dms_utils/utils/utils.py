@@ -590,3 +590,12 @@ def convert_bam_to_sam_folder(inp_folder, out_folder):
         out_filename = os.path.join(out_folder, fn.replace('.bam', '.sam'))
 
         convert_bam_to_sam(inp_filename, out_filename)
+
+
+def get_sample_to_filename_dict(inp_folder, inp_suffix):
+    filenames = sorted([x for x in os.listdir(inp_folder) if x.endswith(inp_suffix)])
+    sample_to_filename_dict = {x.replace(inp_suffix, ""):
+                                         os.path.join(inp_folder, x) for x in filenames}
+    return sample_to_filename_dict
+
+

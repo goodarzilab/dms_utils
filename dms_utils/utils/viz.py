@@ -230,7 +230,9 @@ def visualize_multiple_elements(inp_array,
 
 def plot_read_umi_counts_before_after(read_before_dict, umis_before_dict,
                                       reads_after_dict, umis_after_dict,
-                                      full_fragments_dict):
+                                      full_fragments_dict,
+                                      do_quantiles = False,
+                                      quantile = 0.99):
     assert (len(read_before_dict) == len(reads_after_dict))
     assert (len(umis_before_dict) == len(umis_after_dict))
     for sn in sorted(list(read_before_dict.keys())):
@@ -264,6 +266,9 @@ def plot_read_umi_counts_before_after(read_before_dict, umis_before_dict,
 
         reads_max = max(read_counts_before_np.max(), read_counts_after_np.max())
         umis_max = max(umi_counts_before_np.max(), umi_counts_after_np.max())
+        if do_quantiles:
+            reads_max = max(np.quantile(read_counts_before_np, quantile), np.quantile(read_counts_after_np, quantile))
+            umis_max = max(np.quantile(umi_counts_before_np, quantile), np.quantile(umi_counts_after_np, quantile))
 
         read_counts_after_np_nz = read_counts_after_np[read_counts_before_np != 0]
         read_counts_before_np_nz = read_counts_before_np[read_counts_before_np != 0]

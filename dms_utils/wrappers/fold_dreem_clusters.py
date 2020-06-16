@@ -27,7 +27,7 @@ def handler():
 
         reference_fasta_filename="/rumi/shams/khorms/projects/SNIP_switchers/published_DMSseq_data/tomezsko_2020/stemsAC/StemA_C/reference/MRPS21_200_nt.fa",
         num_runs = 10,
-        num_base = 0,
+        num_base = 10,
         norm_bases = 10,
     )
     args = parser.parse_args()
@@ -150,7 +150,10 @@ def make_list_filenames(inp_folder):
             if not os.path.isdir(K_subf_path):
                 continue
             best_run_subf = [x for x in os.listdir(K_subf_path) if x.endswith('-best')]
-            assert len(best_run_subf) == 1
+            assert len(best_run_subf) <= 1
+            if len(best_run_subf) == 0:
+                print("No Mu files found for sample %s subfolder %s " % (subf, K_subf))
+                continue
             best_run_subf = best_run_subf[0]
             curr_Clusters_Mu_filename = os.path.join(K_subf_path, best_run_subf, "Clusters_Mu.txt")
             filenames_list.append(curr_Clusters_Mu_filename)
