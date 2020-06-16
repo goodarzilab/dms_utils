@@ -56,6 +56,28 @@ def make_TG_mask_from_string(ref_sequence_string,
     return out_mask
 
 
+def combine_several_masks(masks_list):
+    if len(masks_list) == 1:
+        return masks_list[0]
+    out_mask = masks_list[0]
+    for next_mask in masks_list[1:]:
+        out_mask = np.logical_and(out_mask, next_mask)
+    return out_mask
 
-def combine_several_masks():
-    pass
+
+def count_mutation_co_occurence(inp_array,
+                               weights = None):
+    if weights is None:
+        weights = np.ones(inp_array.shape[0], dtype=np.bool)
+    inp_array_t = inp_array.transpose()
+    pairwise_and_loc = np.logical_and(inp_array_t[np.newaxis, :, :], inp_array_t[:, np.newaxis, :])
+    weighted_pairwise_and_loc = pairwise_and_loc * weights[np.newaxis, np.newaxis, :]
+    weighted_sum = weighted_pairwise_and_loc.sum(axis=2)
+    weighted_sum_upper = np.triu(weighted_sum, k = 1)
+    return weighted_sum_upper
+
+
+def reshape_co_occurence_df_to_pairwise(inp_df):
+    stacked_df = inp_df.stack()
+    stacked_df = stacked_df[stacked_df >= 1].rename_axis(('source', 'target')).reset_index(name='weight')
+    return stacked_df
