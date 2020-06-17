@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 import dms_utils.utils.utils as utils
+import networkx as nx
 
 
 def plot_substitutions_along_transcript(ref_vec_loc, count_dict_loc):
@@ -386,3 +387,16 @@ def try_several_thresholds(inp_array_unf,
 
     fig.tight_layout()
     plt.plot()
+
+
+def plot_graph_weighted_enges(G, ax,
+                              attribute_name = 'weight',
+                              cmap = plt.cm.Blues):
+    nx.draw_spring(G,
+       edge_color=nx.get_edge_attributes(G,attribute_name).values(),
+       node_size=1,
+       edge_cmap=cmap,
+       with_labels=True, ax = ax)
+    return ax
+
+
