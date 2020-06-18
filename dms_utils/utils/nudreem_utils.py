@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 from scipy.stats import hypergeom
 import itertools
+import copy
 import networkx as nx
 
 
@@ -293,6 +294,40 @@ def bitvector_array_to_graph_pipeline(bitvect_array,
     G_weighted_scores_tanh = nx.from_pandas_edgelist(weighted_scores_tanh_df_pairwise,
                                             edge_attr=True)
     return G_weighted_scores_tanh, all_masks_combined
+
+
+def positive_weights_subgraph(inp_graph):
+    out_graph = copy.deepcopy(inp_graph)
+    edge_attributes = nx.get_edge_attributes(out_graph, 'weight')
+    edges_to_remove = set()
+    for edge in out_graph.edges():
+        if edge_attributes[edge] <= 0:
+            edges_to_remove.add(edge)
+    out_graph.remove_edges_from(edges_to_remove)
+    return out_graph
+
+
+def rename_graph_for_karate(inp_graph):
+    assert nx.is_connected(inp_graph), "The graph must be connected! Otherwise karate won't work on it"
+    return nx.convert_node_labels_to_integers(inp_graph,
+                                       ordering = 'default',
+                                       label_attribute = 'position')
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
