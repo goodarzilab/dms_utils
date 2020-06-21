@@ -25,3 +25,4 @@ bitstring_letters_to_num = {
     'G' : 1,
     'T' : 1
 }
+

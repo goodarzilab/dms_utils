@@ -47,4 +47,3 @@ def read_bitvector_reference_sequence(inp_file):
     return ref_seq_loc
 
 
-

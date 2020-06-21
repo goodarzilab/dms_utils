@@ -599,3 +599,125 @@ def get_sample_to_filename_dict(inp_folder, inp_suffix):
     return sample_to_filename_dict
 
 
+def get_element_info(header_el, ids_dict):
+    el_name = header_el['SN']
+    el_length = header_el['LN']
+    el_number = ids_dict[el_name]
+    return el_name, el_length, el_number
+
+
+def get_start_end_positions(el_length, adapter_5_size, adapter_3_size):
+    start_poition = adapter_5_size
+    end_position = el_length - adapter_3_size
+    real_length = end_position - start_poition
+    return start_poition, end_position
+
+
+def read_callback_all(read):
+    keep_the_read = True
+    if (read.flag & (0x4 | 0x100 | 0x200 | 0x400)):
+        keep_the_read = False
+    return keep_the_read
+
+
+def read_to_bit_array(read,
+                      ref_start_poition, ref_end_position,
+                      base_quality_threshold):
+    reference_length = ref_end_position - ref_start_poition
+    bitvector_array = np.full(reference_length, fill_value=-1, dtype=np.int8)
+    aligned_pairs = read.get_aligned_pairs(with_seq=True)
+    for tup in aligned_pairs:
+        query_position, reference_position, reference_sequence = tup
+        if reference_position is None:
+            continue  # insertion in the read
+
+        if reference_position < ref_start_poition or reference_position >= ref_end_position:
+            continue  # outside of the region of interest
+
+        coordinate_reference = reference_position - ref_start_poition
+
+        if reference_sequence.isupper(): # if the letter is upper, it's a match
+            bitvector_array[coordinate_reference] = 0
+        else:
+            if read.query_alignment_qualities[query_position - read.query_alignment_start] < base_quality_threshold:
+                continue # check the base quality
+            else:
+                bitvector_array[coordinate_reference] = 1
+    return bitvector_array
+
+
+def compare_expected_observed_mutation_counts(bitvectors_array,
+                                              count_coverage):
+    a_cov, c_cov, g_cov, t_cov = count_coverage
+    coverage_array = np.zeros((4, len(a_cov)), dtype=np.int)
+    coverage_array[0, :] = np.array(a_cov)
+    coverage_array[1, :] = np.array(c_cov)
+    coverage_array[2, :] = np.array(g_cov)
+    coverage_array[3, :] = np.array(t_cov)
+    max_values = coverage_array.max(axis=0)
+    sum_coverage = coverage_array.sum(axis=0)
+    mutations_expected = sum_coverage - max_values
+
+    mutations_count_calculated = bitvectors_array.copy()
+    mutations_count_calculated[mutations_count_calculated < 0] = 0
+    mutations_count_calculated = mutations_count_calculated.sum(axis=0)
+    print(coverage_array.shape)
+    print(max_values.shape)
+
+    print("Expected mutation counts: ")
+    print(mutations_expected)
+    print("Calculated mutation counts: ")
+    print(mutations_count_calculated)
+
+
+
+def reads_to_bitvector_arrays(inp_filename,
+                              adapter_5_size, adapter_3_size,
+                              stop_after_N_elements=-1,
+                              stop_after_N_reads=-1,
+                              base_quality_threshold=30
+                              ):
+    tic = time.time()
+    bam_loc = pysam.AlignmentFile(inp_filename, "rb")
+    header_dict_loc = bam_loc.header.to_dict()['SQ']
+    ids_dict = get_contig_indices(header_dict_loc)
+    n_elements = len(ids_dict)
+    el_counter = 0
+
+    for header_el in header_dict_loc:
+        el_name, el_length, el_number = get_element_info(header_el, ids_dict)
+        start_poition, end_position = get_start_end_positions(el_length, adapter_5_size, adapter_3_size)
+        real_length = end_position - start_poition
+
+        curr_reads_count = bam_loc.count(el_name, read_callback='all')
+        curr_bitvectors_array = np.zeros((curr_reads_count, real_length), dtype=np.int8)
+
+        if el_length != 230:
+            print(el_length)
+            read_count = 0
+            for read in bam_loc.fetch(el_name):
+                if read_callback_all(read):
+                    bitvector_array = read_to_bit_array(read,
+                                                        start_poition, end_position,
+                                                        base_quality_threshold)
+                    curr_bitvectors_array[read_count, :] = bitvector_array
+
+                    read_count += 1
+                    if read_count == stop_after_N_reads:
+                        break
+
+            count_coverage = bam_loc.count_coverage(contig = el_name,
+                                                              start = start_poition, stop = end_position,
+                                                              quality_threshold = base_quality_threshold,
+                                                              read_callback='all')
+            assert read_count == curr_reads_count
+            assert compare_expected_observed_mutation_counts(curr_bitvectors_array,
+                                                            count_coverage)
+
+            el_counter += 1
+            if stop_after_N_elements > 0:
+                if el_counter > stop_after_N_elements:
+                    break
+
+def aaa():
+    pass

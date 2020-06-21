@@ -392,11 +392,64 @@ def try_several_thresholds(inp_array_unf,
 def plot_graph_weighted_enges(G, ax,
                               attribute_name = 'weight',
                               cmap = plt.cm.Blues):
+    if cmap is None:
+        edge_color = None
+    else:
+        edge_color = nx.get_edge_attributes(G,attribute_name).values()
+
     nx.draw_spring(G,
-       edge_color=nx.get_edge_attributes(G,attribute_name).values(),
+       edge_color=edge_color,
        node_size=1,
        edge_cmap=cmap,
        with_labels=True, ax = ax)
     return ax
 
 
+def plot_graph_colored_nodes(G, ax,
+                              attribute_name,
+                              cmap=plt.cm.Set1,
+                              node_size = 80):
+    if cmap is None:
+        node_color = None
+    else:
+        node_color = list(nx.get_node_attributes(G, attribute_name).values())
+
+    nx.draw_spring(G,
+                   node_color=node_color,
+                   node_size=node_size,
+                   cmap=cmap,
+                   with_labels=True, ax=ax)
+    return ax
+
+
+def plot_network_clusters_modified(graph, partition, position, ax,
+                                   node_size=200):
+    color_array = ['r', 'b', 'g', 'c', 'm', 'y', 'k',
+             '0.8', '0.2', '0.6', '0.4', '0.7', '0.3', '0.9', '0.1', '0.5']
+    partition = partition.communities
+    n_communities = min(len(partition), len(color_array))
+    if position is None:
+        position = nx.spring_layout(graph)
+    nx.draw_networkx_nodes(graph, position, ax = ax, node_size=node_size, node_color='w')
+    nx.draw_networkx_edges(graph, position, ax = ax, alpha=.5)
+    for i in range(n_communities):
+        if len(partition[i]) > 0:
+            size = (n_communities - i) * node_size
+            nx.draw_networkx_nodes(graph, position, ax = ax, node_size=size,
+                                         nodelist=partition[i], node_color=color_array[i])
+    nx.draw_networkx_labels(graph, position, ax = ax, labels={node: str(node) for node in graph.nodes()})
+
+
+def plot_network_clusters_ground_truth(graph, position, ax,
+                                   attribute_name,
+                                   node_size=200,
+                                   cmap=plt.cm.Set1):
+    if cmap is None:
+        node_color = None
+    else:
+        node_color = list(nx.get_node_attributes(graph, attribute_name).values())
+    if position is None:
+        position = nx.spring_layout(graph)
+    nx.draw_networkx_edges(graph, position, ax = ax, alpha=.5)
+    nx.draw_networkx_nodes(graph, position, ax = ax, node_size=node_size, node_color=node_color)
+    nx.draw_networkx_labels(graph, position, ax = ax, labels={node: str(node) for node in graph.nodes()})

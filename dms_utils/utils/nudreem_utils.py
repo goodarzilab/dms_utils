@@ -314,21 +314,13 @@ def rename_graph_for_karate(inp_graph):
                                        label_attribute = 'position')
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+def fill_in_node_attritute_dict_for_unknowns(inp_graph, inp_dict,
+                                             missing_value = 0):
+    all_nodes = inp_graph.nodes()
+    out_dict = {}
+    for node in all_nodes:
+        if node in inp_dict:
+            out_dict[node] = inp_dict[node]
+        else:
+            out_dict[node] = missing_value
+    return out_dict
