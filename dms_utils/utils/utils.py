@@ -647,7 +647,9 @@ def read_to_bit_array(read,
 
 
 def compare_expected_observed_mutation_counts(bitvectors_array,
-                                              count_coverage):
+                                              count_coverage,
+                                              accepted_disagreement_fraction,
+                                              do_print):
     a_cov, c_cov, g_cov, t_cov = count_coverage
     coverage_array = np.zeros((4, len(a_cov)), dtype=np.int)
     coverage_array[0, :] = np.array(a_cov)
@@ -661,13 +663,21 @@ def compare_expected_observed_mutation_counts(bitvectors_array,
     mutations_count_calculated = bitvectors_array.copy()
     mutations_count_calculated[mutations_count_calculated < 0] = 0
     mutations_count_calculated = mutations_count_calculated.sum(axis=0)
-    print(coverage_array.shape)
-    print(max_values.shape)
 
-    print("Expected mutation counts: ")
-    print(mutations_expected)
-    print("Calculated mutation counts: ")
-    print(mutations_count_calculated)
+    is_count_the_same = mutations_expected != mutations_count_calculated
+    calculated_correctly = True
+    percentage_off_reference = (is_count_the_same.sum() / is_count_the_same.shape[0])
+    if do_print:
+        if percentage_off_reference != 0:
+            print("Percentage of positions off of reference", percentage_off_reference)
+            print("Observed")
+            print(mutations_count_calculated[is_count_the_same])
+            print("Expected")
+            print(coverage_array[:, is_count_the_same])
+    if (is_count_the_same.sum() / is_count_the_same.shape[0]) > accepted_disagreement_fraction:
+        calculated_correctly = False
+    return calculated_correctly
+
 
 
 
@@ -675,14 +685,17 @@ def reads_to_bitvector_arrays(inp_filename,
                               adapter_5_size, adapter_3_size,
                               stop_after_N_elements=-1,
                               stop_after_N_reads=-1,
-                              base_quality_threshold=30
+                              base_quality_threshold=30,
+                              accepted_disagreement_fraction = 0.1,
+                              do_print = True,
+                              how_often_print = 100,
                               ):
-    tic = time.time()
+    bitvectors_out_dict = {}
     bam_loc = pysam.AlignmentFile(inp_filename, "rb")
     header_dict_loc = bam_loc.header.to_dict()['SQ']
     ids_dict = get_contig_indices(header_dict_loc)
-    n_elements = len(ids_dict)
     el_counter = 0
+    tic = time.time()
 
     for header_el in header_dict_loc:
         el_name, el_length, el_number = get_element_info(header_el, ids_dict)
@@ -692,32 +705,39 @@ def reads_to_bitvector_arrays(inp_filename,
         curr_reads_count = bam_loc.count(el_name, read_callback='all')
         curr_bitvectors_array = np.zeros((curr_reads_count, real_length), dtype=np.int8)
 
-        if el_length != 230:
-            print(el_length)
-            read_count = 0
-            for read in bam_loc.fetch(el_name):
-                if read_callback_all(read):
-                    bitvector_array = read_to_bit_array(read,
-                                                        start_poition, end_position,
-                                                        base_quality_threshold)
-                    curr_bitvectors_array[read_count, :] = bitvector_array
+        read_count = 0
+        for read in bam_loc.fetch(el_name):
+            if read_callback_all(read):
+                bitvector_array = read_to_bit_array(read,
+                                                    start_poition, end_position,
+                                                    base_quality_threshold)
+                curr_bitvectors_array[read_count, :] = bitvector_array
 
-                    read_count += 1
-                    if read_count == stop_after_N_reads:
-                        break
-
-            count_coverage = bam_loc.count_coverage(contig = el_name,
-                                                              start = start_poition, stop = end_position,
-                                                              quality_threshold = base_quality_threshold,
-                                                              read_callback='all')
-            assert read_count == curr_reads_count
-            assert compare_expected_observed_mutation_counts(curr_bitvectors_array,
-                                                            count_coverage)
-
-            el_counter += 1
-            if stop_after_N_elements > 0:
-                if el_counter > stop_after_N_elements:
+                read_count += 1
+                if read_count == stop_after_N_reads:
                     break
 
-def aaa():
-    pass
+        count_coverage = bam_loc.count_coverage(contig = el_name,
+                                                          start = start_poition, stop = end_position,
+                                                          quality_threshold = base_quality_threshold,
+                                                          read_callback='all')
+        assert read_count == curr_reads_count
+        assert compare_expected_observed_mutation_counts(curr_bitvectors_array,
+                                                        count_coverage,
+                                                         accepted_disagreement_fraction,
+                                                         do_print = do_print)
+        bitvectors_out_dict[el_name] = curr_bitvectors_array
+
+        el_counter += 1
+        if stop_after_N_elements > 0:
+            if el_counter > stop_after_N_elements:
+                break
+        if el_counter % how_often_print == 0:
+            if do_print:
+                toc = time.time()
+                print("%d reference fragments calculated. spent %d seconds for the last %d" %
+                      (el_counter, (toc - tic), how_often_print))
+                tic = time.time()
+    return bitvectors_out_dict
+
+
