@@ -25,5 +25,20 @@ def test_filter_by_distance_between_mutations():
     where_too_close = dms_utils.filter_by_distance_between_mutations(a, max_prohib_distance = 3)
     assert (where_too_close == np.array([0,1,0,1,1], dtype=np.bool)).all()
 
+
+def test_filter_by_positions_surrounding_mutations():
+    a = np.zeros((5, 6))
+    a[0, 0] = 1
+    a[0, 1] = -1
+    a[2, 1] = -1
+    a[2, 2] = 1
+    a[3, 1] = 1
+    a[3, 3] = -1
+
+    where_too_close = dms_utils.filter_by_positions_surrounding_mutations(a)
+    assert (where_too_close == np.array([1,0,1,0,0], dtype=np.bool)).all()
+
+
 if __name__ == "__main__":
     test_filter_by_distance_between_mutations()
+    test_filter_by_positions_surrounding_mutations()

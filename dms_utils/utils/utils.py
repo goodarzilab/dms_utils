@@ -758,6 +758,26 @@ def get_mutations_per_read_from_bit_arrays(bit_arrays_dict):
 
     return mutation_counts_array
 
+def get_non_inform_per_read_from_bit_arrays(bit_arrays_dict):
+    total_reads = 0
+
+    for element in bit_arrays_dict:
+        total_reads += bit_arrays_dict[element].shape[0]
+    fraction_non_inform_array = np.zeros(total_reads, dtype=np.float)
+
+    current_index = 0
+    for element in bit_arrays_dict:
+        current_shift = bit_arrays_dict[element].shape[0]
+        current_non_inform_array = bit_arrays_dict[element].copy()
+        current_non_inform_array[current_non_inform_array != -1] = 0
+        current_non_inform_array[current_non_inform_array == -1] = 1
+        count_non_inform = current_non_inform_array.sum(axis=1)
+        fraction_non_inform = count_non_inform /  current_non_inform_array.shape[1]
+        fraction_non_inform_array[current_index : current_index + current_shift] = fraction_non_inform
+        current_index += current_shift
+
+    return fraction_non_inform_array
+
 
 def calculate_number_mutations_threshold(all_reads_mutation_counts_array,
                                          number_of_stds = 3):
@@ -775,6 +795,16 @@ def filter_by_mutation_counts(current_bit_matrix,
     return mutation_counts > n_mutations_threshold
 
 
+def filter_by_fraction_covered_positions(current_bit_matrix,
+                                  max_fraction_non_inform):
+    current_non_inform_array = current_bit_matrix.copy()
+    current_non_inform_array[current_non_inform_array != -1] = 0
+    current_non_inform_array[current_non_inform_array == -1] = 1
+    count_non_inform = current_non_inform_array.sum(axis=1)
+    fraction_non_inform = count_non_inform / current_non_inform_array.shape[1]
+    return fraction_non_inform > max_fraction_non_inform
+
+
 def filter_by_distance_between_mutations(current_bit_matrix,
                                          max_prohib_distance = 3):
     bool_mutations = current_bit_matrix == 1
@@ -788,6 +818,20 @@ def filter_by_distance_between_mutations(current_bit_matrix,
     return out_mask
 
 
+def filter_by_positions_surrounding_mutations(current_bit_matrix):
+    bool_mutations = current_bit_matrix == 1
+    bool_non_covered = current_bit_matrix == -1
+    mutations_left = bool_mutations[:,:-1]
+    mutations_right = bool_mutations[:, 1:]
+    non_covered_left = bool_non_covered[:,:-1]
+    non_covered_right = bool_non_covered[:, 1:]
+    mut_then_non_covered = np.logical_and(mutations_left, non_covered_right)
+    mut_then_non_covered_mask = mut_then_non_covered.sum(axis=1) > 0
+    non_covered_then_mut = np.logical_and(non_covered_left, mutations_right)
+    non_covered_then_mut_mask = non_covered_then_mut.sum(axis=1) > 0
+    return np.logical_or(mut_then_non_covered_mask, non_covered_then_mut_mask)
+
+
 def make_filter_masks_based_on_filter_function(bit_arrays_dict,
                                                filter_function):
     masks_dict = {}
@@ -797,18 +841,41 @@ def make_filter_masks_based_on_filter_function(bit_arrays_dict,
     return masks_dict
 
 
+def apply_specified_filters_to_bit_arrays_dict(bit_arrays_dict,
+                                               filters_list,
+                                               filters_names_list):
+    masks_dict = {}
+    for filt, filt_name in zip(filters_list, filters_names_list):
+        masks_dict[filt_name] = make_filter_masks_based_on_filter_function(
+                                               bit_arrays_dict,
+                                               filt)
+    return masks_dict
 
 
-def filter_3_distance_between_mutations___(row, filters_names_loc):
-    passed = True
-    bit_string = row['Bit_vector']
-    latest_mutbit_index = -1000
-    for i in range(len(bit_string)):
-        if bit_string[i] == '1':
-            if i - latest_mutbit_index < 4:
-                passed = False
-            latest_mutbit_index = i
-    return passed
+def count_number_of_reads_filtered_by_mask(mask_dict):
+    total_number_of_reads = 0
+    total_number_of_reads_filtered_out = 0
+
+    for element in mask_dict:
+        total_number_of_reads += mask_dict[element].shape[0]
+        total_number_of_reads_filtered_out += mask_dict[element].sum()
+
+    return total_number_of_reads, total_number_of_reads_filtered_out
 
 
+def get_fraction_filtered_reads(total_number_of_reads, total_number_of_reads_filtered_out):
+    return total_number_of_reads_filtered_out /total_number_of_reads
 
+
+def combine_mask_dicts(list_of_mask_dicts):
+    length_of_mask_dict = len(list_of_mask_dicts[0])
+    for i in range(len(list_of_mask_dicts)):
+        assert len(list_of_mask_dicts[i]) == length_of_mask_dict
+    combined_mask_dict = {}
+    for mask_dict in list_of_mask_dicts:
+        for element in mask_dict:
+            if element not in combined_mask_dict:
+                combined_mask_dict[element] = mask_dict[element]
+            combined_mask_dict[element] = np.logical_or(combined_mask_dict[element],
+                                                        mask_dict[element])
+    return combined_mask_dict

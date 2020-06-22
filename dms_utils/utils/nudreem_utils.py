@@ -1,5 +1,5 @@
-from .glob_vars import bitstring_letters_to_num
-from .io import read_bitvector_to_df, read_bitvector_reference_sequence
+from . import glob_vars
+from . import io
 import pandas as pd
 import numpy as np
 from scipy.stats import hypergeom
@@ -11,7 +11,7 @@ import networkx as nx
 def convert_bitstring_to_numpy(inp_string):
     out_array = np.zeros(len(inp_string), dtype=np.int8)
     for i in range(len(inp_string)):
-        out_array[i] = bitstring_letters_to_num[inp_string[i]]
+        out_array[i] = glob_vars.bitstring_letters_to_num[inp_string[i]]
     return out_array
 
 
@@ -236,8 +236,8 @@ def bitvector_to_numpy_pipeline(inp_filename,
                            "filter_3_distance_between_mutations",
                            "filter_4_bits_surrounding_mutations"]
 
-    bitvect_df = read_bitvector_to_df(inp_filename)
-    bitvect_reference_string = read_bitvector_reference_sequence(inp_filename)
+    bitvect_df = io.read_bitvector_to_df(inp_filename)
+    bitvect_reference_string = io.read_bitvector_reference_sequence(inp_filename)
     nmuts_thresh = calculate_mutation_thresholds(bitvect_df)
     filter_parameters_dict = {"nmuts_thresh": nmuts_thresh,
                                  'info_thresh': info_thresh}  # got value from a hard coded value in Run_DREEM.py script
