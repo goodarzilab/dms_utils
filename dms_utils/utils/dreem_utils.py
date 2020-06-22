@@ -207,3 +207,4 @@ def launch_EM_clustering(sample_name, name, start, end, out_folder, ref_file,
         dof.Log_File(bvfile_basename, NUM_RUNS, MIN_ITS,
                           CONV_CUTOFF, INFO_THRESH, SIG_THRESH, inc_TG,
                           norm_bases, K - 2, time_taken, outplot_dir)
+

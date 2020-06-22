@@ -741,3 +741,74 @@ def reads_to_bitvector_arrays(inp_filename,
     return bitvectors_out_dict
 
 
+def get_mutations_per_read_from_bit_arrays(bit_arrays_dict):
+    total_reads = 0
+
+    for element in bit_arrays_dict:
+        total_reads += bit_arrays_dict[element].shape[0]
+    mutation_counts_array = np.zeros(total_reads, dtype=np.int32)
+
+    current_index = 0
+    for element in bit_arrays_dict:
+        current_shift = bit_arrays_dict[element].shape[0]
+        current_mutated_array = bit_arrays_dict[element].copy()
+        current_mutated_array[current_mutated_array < 0] = 0
+        mutation_counts_array[current_index : current_index + current_shift] = current_mutated_array.sum(axis=1)
+        current_index += current_shift
+
+    return mutation_counts_array
+
+
+def calculate_number_mutations_threshold(all_reads_mutation_counts_array,
+                                         number_of_stds = 3):
+    median_mutations_number = np.median(all_reads_mutation_counts_array)
+    std = np.std(all_reads_mutation_counts_array)
+    curr_mut_thr = median_mutations_number + number_of_stds * std
+    return curr_mut_thr
+
+
+def filter_by_mutation_counts(current_bit_matrix,
+                              n_mutations_threshold):
+    current_mutated_array = current_bit_matrix.copy()
+    current_mutated_array[current_mutated_array < 0] = 0
+    mutation_counts = current_mutated_array.sum(axis=1)
+    return mutation_counts > n_mutations_threshold
+
+
+def filter_by_distance_between_mutations(current_bit_matrix,
+                                         max_prohib_distance = 3):
+    bool_mutations = current_bit_matrix == 1
+    out_mask = np.zeros(current_bit_matrix.shape[0], dtype = np.bool)
+    for i in range(1, max_prohib_distance + 1):
+        left_subset = bool_mutations[:, :-i]
+        right_subset = bool_mutations[:, i:]
+        mut_of_the_right_distance = np.logical_and(left_subset, right_subset)
+        curr_distance_mask = mut_of_the_right_distance.sum(axis=1) > 0
+        out_mask = np.logical_or(out_mask, curr_distance_mask)
+    return out_mask
+
+
+def make_filter_masks_based_on_filter_function(bit_arrays_dict,
+                                               filter_function):
+    masks_dict = {}
+    for element in bit_arrays_dict:
+        masks_dict[element] = filter_function(bit_arrays_dict[element])
+        assert masks_dict[element].shape[0] == bit_arrays_dict[element].shape[0]
+    return masks_dict
+
+
+
+
+def filter_3_distance_between_mutations___(row, filters_names_loc):
+    passed = True
+    bit_string = row['Bit_vector']
+    latest_mutbit_index = -1000
+    for i in range(len(bit_string)):
+        if bit_string[i] == '1':
+            if i - latest_mutbit_index < 4:
+                passed = False
+            latest_mutbit_index = i
+    return passed
+
+
+

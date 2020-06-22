@@ -324,3 +324,10 @@ def fill_in_node_attritute_dict_for_unknowns(inp_graph, inp_dict,
         else:
             out_dict[node] = missing_value
     return out_dict
+
+
+def std_calculation_through_mad(inp_array):
+    mad = np.median(np.abs(inp_array - np.median(inp_array)))
+    std = mad / 0.6745
+    return std
+
