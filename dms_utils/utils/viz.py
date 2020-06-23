@@ -443,13 +443,20 @@ def plot_network_clusters_modified(graph, partition, position, ax,
 def plot_network_clusters_ground_truth(graph, position, ax,
                                    attribute_name,
                                    node_size=200,
-                                   cmap=plt.cm.Set1):
+                                   cmap=plt.cm.Set1,
+                                   edge_cmap=None):
     if cmap is None:
         node_color = None
     else:
         node_color = list(nx.get_node_attributes(graph, attribute_name).values())
+
+    if edge_cmap is None:
+        edge_color = None
+    else:
+        edge_color = nx.get_edge_attributes(graph,'weight').values()
+
     if position is None:
         position = nx.spring_layout(graph)
-    nx.draw_networkx_edges(graph, position, ax = ax, alpha=.5)
+    nx.draw_networkx_edges(graph, position, ax = ax, alpha=.5, edge_color=edge_color, edge_cmap=edge_cmap)
     nx.draw_networkx_nodes(graph, position, ax = ax, node_size=node_size, node_color=node_color)
     nx.draw_networkx_labels(graph, position, ax = ax, labels={node: str(node) for node in graph.nodes()})

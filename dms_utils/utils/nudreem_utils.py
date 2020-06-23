@@ -99,7 +99,6 @@ def get_enrichment_score(cooccurence_matrix_loc,
         mut_count_i = mutation_counts_loc[i]
         mut_count_k = mutation_counts_loc[k]
         # get the expected intersection
-        hypergeom.mean(M=20, n=7, N=12)
         expected = hypergeom.mean(M = total_reads_number_loc,
                                   n = mut_count_i,
                                   N = mut_count_k)
@@ -121,6 +120,22 @@ def get_enrichment_score(cooccurence_matrix_loc,
             signed_log_pvalue = 0
         enr_score_matrix[i, k] = signed_log_pvalue
     return enr_score_matrix
+
+
+def get_expected_co_occurence(cooccurence_matrix_loc,
+                         mutation_counts_loc,
+                         total_reads_number_loc):
+    expected_matrix = np.zeros_like(cooccurence_matrix_loc, dtype = np.float)
+    positions_number = cooccurence_matrix_loc.shape[0]
+    for i, k in itertools.combinations(np.arange(positions_number), 2):
+        mut_count_i = mutation_counts_loc[i]
+        mut_count_k = mutation_counts_loc[k]
+        # get the expected intersection
+        expected = hypergeom.mean(M = total_reads_number_loc,
+                                  n = mut_count_i,
+                                  N = mut_count_k)
+        expected_matrix[i, k] = expected
+    return expected_matrix
 
 
 def zero_adjacent_nucleotides_interactions(inter_matrix, labels, min_distance = 3):
@@ -333,7 +348,7 @@ def std_calculation_through_mad(inp_array):
     return std
 
 
-def filtered_bit_vector_to_graph(bitvect_array):
+def get_cooccurence_weighted(bitvect_array):
     bitvect_array_muts_only = np.zeros_like(bitvect_array)
     bitvect_array_muts_only[bitvect_array == 1] = 1
     bitvect_unique_muts_only_array, bitvect_unique_muts_only_counts = np.unique(bitvect_array_muts_only,
@@ -342,7 +357,13 @@ def filtered_bit_vector_to_graph(bitvect_array):
     cooccurence_weighted = count_mutation_co_occurence(bitvect_unique_muts_only_array,
                                                         weights = bitvect_unique_muts_only_counts)
     total_reads_number = bitvect_array.shape[0]
-    mutation_counts_array = bitvect_array_muts_only.sum(axis = 0)
+    mutation_counts_array = bitvect_array_muts_only.sum(axis=0)
+    return cooccurence_weighted, mutation_counts_array, total_reads_number
+
+
+
+def filtered_bit_vector_to_graph(bitvect_array):
+    cooccurence_weighted, mutation_counts_array, total_reads_number = get_cooccurence_weighted(bitvect_array)
     enrichm_score_matrix = get_enrichment_score(cooccurence_weighted,
                                      mutation_counts_array,
                                      total_reads_number)
@@ -358,6 +379,29 @@ def filtered_bit_vector_to_graph(bitvect_array):
     G_weighted_scores_tanh = nx.from_pandas_edgelist(weighted_scores_tanh_df_pairwise,
                                             edge_attr=True)
     return G_weighted_scores_tanh
+
+
+def filtered_bit_vector_to_graph_observed_expected(bitvect_array):
+    cooccurence_weighted, mutation_counts_array, total_reads_number = get_cooccurence_weighted(bitvect_array)
+
+
+
+    enrichm_score_matrix = get_enrichment_score(cooccurence_weighted,
+                                     mutation_counts_array,
+                                     total_reads_number)
+    position_numbers = np.arange(bitvect_array.shape[1])
+    enrichm_score_matrix_no_adj = zero_adjacent_nucleotides_interactions(enrichm_score_matrix,
+                                                                        labels = position_numbers,
+                                                                        min_distance = 3)
+    enrichm_score_matrix_no_adj_tanh = np.tanh(enrichm_score_matrix_no_adj)
+    weighted_scores_tanh_df = pd.DataFrame(data = enrichm_score_matrix_no_adj_tanh,
+                                             index = position_numbers,
+                                             columns = position_numbers)
+    weighted_scores_tanh_df_pairwise = reshape_co_occurence_df_to_pairwise(weighted_scores_tanh_df)
+    G_weighted_scores_tanh = nx.from_pandas_edgelist(weighted_scores_tanh_df_pairwise,
+                                            edge_attr=True)
+    return G_weighted_scores_tanh
+
 
 
 def relabel_graph_by_original_structure(graph,
@@ -380,3 +424,32 @@ def relabel_graph_by_original_structure(graph,
                            labels_dict,
                            name=attribute_label)
     return graph
+
+
+def get_communities_by_attribute(graph, attribute):
+    attributes_dict = nx.get_node_attributes(graph, attribute)
+    comms = []
+    for value in set(attributes_dict.values()):
+        curr_comm = []
+        for k in attributes_dict:
+            if attributes_dict[k] == value:
+                curr_comm.append(k)
+        comms.append(curr_comm)
+    return comms
+
+
+def erdos_renyi_modularity(graph, communities):
+    m = graph.number_of_edges()
+    n = graph.number_of_nodes()
+    q = 0
+
+    for community in communities:
+        c = nx.subgraph(graph, community)
+        mc = c.number_of_edges()
+        nc = c.number_of_nodes()
+        q += mc - (m * nc * (nc - 1)) / (n * (n - 1))
+    if q == 0:
+        score = None
+    else:
+        score = (1 / m) * q
+    return score

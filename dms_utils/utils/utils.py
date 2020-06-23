@@ -1003,8 +1003,8 @@ def var_pos_bit_array_dict_to_graph(var_pos_bit_arrays_dict,
     out_dict = {}
     for i, el in enumerate(var_pos_bit_arrays_dict):
         curr_graph = nudreem_utils.filtered_bit_vector_to_graph(var_pos_bit_arrays_dict[el]['bit_array'])
-        curr_graph_positive = nudreem_utils.positive_weights_subgraph(curr_graph)
-        renamed_graph = nudreem_utils.relabel_graph_by_original_structure(curr_graph_positive,
+        curr_graph = nudreem_utils.positive_weights_subgraph(curr_graph)
+        renamed_graph = nudreem_utils.relabel_graph_by_original_structure(curr_graph,
                                                                 var_pos_bit_arrays_dict[el]['structure_1_index'],
                                                                 var_pos_bit_arrays_dict[el]['structure_2_index'])
         out_dict[el] = renamed_graph
@@ -1015,3 +1015,5 @@ def var_pos_bit_array_dict_to_graph(var_pos_bit_arrays_dict,
                 tic = time.time()
 
     return out_dict
+
+
