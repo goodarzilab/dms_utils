@@ -5,6 +5,7 @@ import numpy as np
 from scipy.stats import hypergeom
 import itertools
 import copy
+import sys
 import networkx as nx
 
 
@@ -331,3 +332,51 @@ def std_calculation_through_mad(inp_array):
     std = mad / 0.6745
     return std
 
+
+def filtered_bit_vector_to_graph(bitvect_array):
+    bitvect_array_muts_only = np.zeros_like(bitvect_array)
+    bitvect_array_muts_only[bitvect_array == 1] = 1
+    bitvect_unique_muts_only_array, bitvect_unique_muts_only_counts = np.unique(bitvect_array_muts_only,
+                                     axis = 0,
+                                     return_counts = True)
+    cooccurence_weighted = count_mutation_co_occurence(bitvect_unique_muts_only_array,
+                                                        weights = bitvect_unique_muts_only_counts)
+    total_reads_number = bitvect_array.shape[0]
+    mutation_counts_array = bitvect_array_muts_only.sum(axis = 0)
+    enrichm_score_matrix = get_enrichment_score(cooccurence_weighted,
+                                     mutation_counts_array,
+                                     total_reads_number)
+    position_numbers = np.arange(bitvect_array.shape[1])
+    enrichm_score_matrix_no_adj = zero_adjacent_nucleotides_interactions(enrichm_score_matrix,
+                                                                        labels = position_numbers,
+                                                                        min_distance = 3)
+    enrichm_score_matrix_no_adj_tanh = np.tanh(enrichm_score_matrix_no_adj)
+    weighted_scores_tanh_df = pd.DataFrame(data = enrichm_score_matrix_no_adj_tanh,
+                                             index = position_numbers,
+                                             columns = position_numbers)
+    weighted_scores_tanh_df_pairwise = reshape_co_occurence_df_to_pairwise(weighted_scores_tanh_df)
+    G_weighted_scores_tanh = nx.from_pandas_edgelist(weighted_scores_tanh_df_pairwise,
+                                            edge_attr=True)
+    return G_weighted_scores_tanh
+
+
+def relabel_graph_by_original_structure(graph,
+                                        structure_1_index, structure_2_index,
+                                        structure_1_label = 1, structure_2_label = 2,
+                                        attribute_label = 'sw'):
+    assert structure_1_index.shape[0] == structure_2_index.shape[0]
+    assert np.logical_and(structure_1_index, structure_2_index).sum() == 0
+    assert np.logical_or(structure_1_index, structure_2_index).sum() == structure_1_index.shape[0]
+
+    labels_dict = {}
+    for i in range(structure_1_index.shape[0]):
+        if structure_1_index[i]:
+            labels_dict[i] = structure_1_label
+        elif structure_2_index[i]:
+            labels_dict[i] = structure_2_label
+        else:
+            sys.exit(1)
+    nx.set_node_attributes(graph,
+                           labels_dict,
+                           name=attribute_label)
+    return graph

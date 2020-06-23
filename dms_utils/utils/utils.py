@@ -10,6 +10,8 @@ import scipy.stats
 import os
 import subprocess
 
+from . import nudreem_utils
+
 
 def get_contig_indices(header_dict_loc):
     ids_dict = {}
@@ -832,6 +834,16 @@ def filter_by_positions_surrounding_mutations(current_bit_matrix):
     return np.logical_or(mut_then_non_covered_mask, non_covered_then_mut_mask)
 
 
+def caluclate_mutation_fractions(current_bit_matrix):
+    total_mutations = (current_bit_matrix == 1).sum(axis=0)
+    total_coverage = (current_bit_matrix != -1).sum(axis=0)
+    mask_out_non_covered = total_coverage == 0
+    mutation_fractions = total_mutations / total_coverage
+    mutation_fractions[mask_out_non_covered] = 0
+    return mutation_fractions
+
+
+
 def make_filter_masks_based_on_filter_function(bit_arrays_dict,
                                                filter_function):
     masks_dict = {}
@@ -867,7 +879,7 @@ def get_fraction_filtered_reads(total_number_of_reads, total_number_of_reads_fil
     return total_number_of_reads_filtered_out /total_number_of_reads
 
 
-def combine_mask_dicts(list_of_mask_dicts):
+def combine_mask_dicts(list_of_mask_dicts, how):
     length_of_mask_dict = len(list_of_mask_dicts[0])
     for i in range(len(list_of_mask_dicts)):
         assert len(list_of_mask_dicts[i]) == length_of_mask_dict
@@ -876,6 +888,130 @@ def combine_mask_dicts(list_of_mask_dicts):
         for element in mask_dict:
             if element not in combined_mask_dict:
                 combined_mask_dict[element] = mask_dict[element]
-            combined_mask_dict[element] = np.logical_or(combined_mask_dict[element],
-                                                        mask_dict[element])
+            if how == 'or':
+                combined_mask_dict[element] = np.logical_or(combined_mask_dict[element],
+                                                            mask_dict[element])
+            elif how == 'and':
+                combined_mask_dict[element] = np.logical_and(combined_mask_dict[element],
+                                                            mask_dict[element])
+            else:
+                print("wrong value for argument how")
+                sys.exit(1)
     return combined_mask_dict
+
+
+def filter_reads_based_on_mask(bit_arrays_dict, mask_dict):
+    out_dict = {}
+    assert len(bit_arrays_dict) == len(mask_dict)
+
+    for el in bit_arrays_dict:
+        out_dict[el] = bit_arrays_dict[el][np.invert(mask_dict[el]), :]
+
+    return out_dict
+
+
+def calculate_bit_array_coverage(bit_arrays_dict):
+    coverage_array = np.zeros(len(bit_arrays_dict), dtype=np.int)
+    for i, el in enumerate(list(bit_arrays_dict.keys())):
+        coverage_array[i] = bit_arrays_dict[el].shape[0]
+    return coverage_array
+
+
+def identify_mutated_positions(bit_arrays_dict,
+                               signal_lower_threshold,
+                               signal_upper_threshold):
+    out_mask_dict = {}
+
+    for el in bit_arrays_dict:
+        mutation_fractions = caluclate_mutation_fractions(bit_arrays_dict[el])
+        curr_mask = np.logical_and(mutation_fractions >= signal_lower_threshold,
+                       mutation_fractions <= signal_upper_threshold)
+        out_mask_dict[el] = curr_mask
+
+    return out_mask_dict
+
+
+def remove_adapters_from_reference_sequences(inp_seq_dict, adapter_5, adapter_3):
+    out_seq_dict = {}
+
+    for el in inp_seq_dict:
+        out_seq_dict[el] = inp_seq_dict[el].replace(adapter_5, "").replace(adapter_3, "")
+
+    return out_seq_dict
+
+
+def mask_out_non_A_C_positions(bit_arrays_dict, seq_dict,
+                               allowed_characters = ('A','C')):
+    out_mask_dict = {}
+
+    for el in bit_arrays_dict:
+        assert len(seq_dict[el]) == bit_arrays_dict[el].shape[1]
+        current_mask_array = np.zeros(len(seq_dict[el]), dtype = np.bool)
+
+        for i in range(len(seq_dict[el])):
+            if seq_dict[el][i] in allowed_characters:
+                current_mask_array[i] = True
+            else:
+                current_mask_array[i] = False
+        out_mask_dict[el] = current_mask_array
+
+    return out_mask_dict
+
+
+def calculate_sums_of_masks_from_dict(mask_dict):
+    mask_sum_array = np.zeros(len(mask_dict), dtype=np.int)
+    for i, el in enumerate(list(mask_dict.keys())):
+        mask_sum_array[i] = mask_dict[el].sum()
+    return mask_sum_array
+
+
+def keep_bit_vectors_for_variable_positions(bit_arrays_dict,
+                                            mutation_mask_dict,
+                                            fragment_collection):
+    out_dict = {}
+    for el in bit_arrays_dict:
+        if el not in fragment_collection.body_dict:
+            continue
+        unp_positions_1 = fragment_collection.body_dict[el].major_conf.differentially_unpaired_states
+        unp_positions_2 = fragment_collection.body_dict[el].second_conf.differentially_unpaired_states
+        valid_unp_positions_1 = np.logical_and(mutation_mask_dict[el], unp_positions_1)
+        valid_unp_positions_2 = np.logical_and(mutation_mask_dict[el], unp_positions_2)
+        valid_all_unp_positions = np.logical_or(valid_unp_positions_1, valid_unp_positions_2)
+        out_dict[el] = {}
+        out_dict[el]['bit_array'] = bit_arrays_dict[el][:, valid_all_unp_positions]
+        out_dict[el]['structure_1_index'] = valid_unp_positions_1[valid_all_unp_positions]
+        out_dict[el]['structure_2_index'] = valid_unp_positions_2[valid_all_unp_positions]
+
+    return out_dict
+
+
+def filter_fragments_by_number_of_variable_positions(var_positions_bitcount_dict,
+                                                     min_positions_per_structure):
+    out_dict = {}
+    for el in var_positions_bitcount_dict:
+        if (var_positions_bitcount_dict[el]['structure_1_index'].sum() >= min_positions_per_structure) and \
+            (var_positions_bitcount_dict[el]['structure_2_index'].sum() >= min_positions_per_structure):
+            out_dict[el] = var_positions_bitcount_dict[el]
+
+    return out_dict
+
+
+def var_pos_bit_array_dict_to_graph(var_pos_bit_arrays_dict,
+                                    do_print = False,
+                                    how_often_print = 10):
+    tic = time.time()
+    out_dict = {}
+    for i, el in enumerate(var_pos_bit_arrays_dict):
+        curr_graph = nudreem_utils.filtered_bit_vector_to_graph(var_pos_bit_arrays_dict[el]['bit_array'])
+        curr_graph_positive = nudreem_utils.positive_weights_subgraph(curr_graph)
+        renamed_graph = nudreem_utils.relabel_graph_by_original_structure(curr_graph_positive,
+                                                                var_pos_bit_arrays_dict[el]['structure_1_index'],
+                                                                var_pos_bit_arrays_dict[el]['structure_2_index'])
+        out_dict[el] = renamed_graph
+        if do_print:
+            if i % how_often_print == 0 and i > 0:
+                toc = time.time()
+                print("Processed %d fragments, spent %d seconds" % (i, (toc-tic)))
+                tic = time.time()
+
+    return out_dict
