@@ -1017,3 +1017,170 @@ def var_pos_bit_array_dict_to_graph(var_pos_bit_arrays_dict,
     return out_dict
 
 
+def average_two_reps(inp_df, colnames_1, colnames_2):
+    inp_df_sorted = inp_df.copy()
+    inp_df_sorted = inp_df_sorted.sort_index()
+    inp_df_sorted_rep_1 = inp_df_sorted[colnames_1].copy()
+    inp_df_sorted_rep_2 = inp_df_sorted[colnames_2].copy()
+    np_rep1_loc = inp_df_sorted_rep_1.to_numpy()
+    np_rep2_loc = inp_df_sorted_rep_2.to_numpy()
+    np_counts_loc = (np_rep1_loc + np_rep2_loc) / 2
+    return np_counts_loc, np_rep1_loc, np_rep2_loc
+
+
+def choose_elements_subset(fragment_names_list,
+                           subset_size = 10,
+                           seed = 57):
+    number_elements = len(fragment_names_list)
+    if not seed is None:
+        np.random.seed(seed)
+    chosen_indices = np.random.choice(number_elements, subset_size)
+    chosen_names = [fragment_names_list[x] for x in chosen_indices]
+
+    return chosen_names
+
+
+def shape_normalize_2_8(reactivities_array,
+                        consider_non_zeros_only = True,
+                        do_print = True,
+                        n_to_remove = 0.02,
+                        n_to_normalize_by = 0.10):
+    if consider_non_zeros_only:
+        total_positions = (reactivities_array > 0).sum()
+    else:
+        total_positions = reactivities_array.shape[0]
+    sorted_reactivities = np.sort(reactivities_array)[::-1]
+    top_2 = int(round(n_to_remove * total_positions))
+    top_10 = int(round(n_to_normalize_by * total_positions))
+    values_to_remove = sorted_reactivities[0 : top_2]
+    values_to_normalize_by = sorted_reactivities[top_2 : top_10]
+    print(total_positions, top_2, top_10)
+    print("To remove: ", values_to_remove)
+    print("To normalize by: ", values_to_normalize_by)
+    print()
+
+
+def subtract_control_frequencies_from_dms_frequencies(exp_mut_fractions_dict,
+                                                      contr_mut_fractions_dict):
+    out_dict = {}
+    for el in exp_mut_fractions_dict:
+        difference = exp_mut_fractions_dict[el] - contr_mut_fractions_dict[el]
+        difference[difference < 0] = 0
+        out_dict[el] = difference
+    return out_dict
+
+
+def get_interquantile_range(inp_array,
+                            consider_non_zeros_only = True):
+    positive_array = inp_array.copy()
+    if consider_non_zeros_only:
+        positive_array = positive_array[positive_array > 0]
+    quantile_25 = np.quantile(positive_array, 0.25)
+    quantile_75 = np.quantile(positive_array, 0.75)
+    interquantile_range = quantile_75 - quantile_25
+    return interquantile_range, quantile_25, quantile_75
+
+
+def set_up_threshold_for_outliers(sorted_reactivities,
+                                  maximal_value,
+                                  n_positive_values,
+                                  max_fraction_of_outliers):
+    n_outliers = (sorted_reactivities >= maximal_value).sum()
+    max_n_outliers = int(round(max_fraction_of_outliers * n_positive_values))
+
+    if n_outliers > max_n_outliers:
+        maximal_value = (sorted_reactivities[max_n_outliers - 1] + sorted_reactivities[max_n_outliers]) / 2
+        n_outliers = (sorted_reactivities >= maximal_value).sum()
+
+    return maximal_value, n_outliers
+
+
+def set_up_value_of_1_box_plot_norm(
+                      sorted_reactivities,
+                      n_outliers,
+                      n_positive_values,
+                      fraction_values_normalize_by
+                      ):
+    n_to_normalize_by = int(round(fraction_values_normalize_by * n_positive_values))
+    value_to_normalize_by = np.mean(sorted_reactivities[n_outliers : n_outliers + n_to_normalize_by])
+    return value_to_normalize_by
+
+
+def dms_normalize_box_plot(reactivities_array,
+                        consider_non_zeros_only = True,
+                        n_times_interquantile_range = 1.5,
+                        max_fraction_of_outliers = 0.1,
+                        fraction_values_normalize_by = 0.1,
+                        ):
+    n_positive_values = (reactivities_array > 0).sum()
+    if n_positive_values == 0: # if there aren't any non-zero values at all
+        return reactivities_array
+    sorted_reactivities = np.sort(reactivities_array)[::-1]
+
+    interquantile_range, quantile_25, quantile_75 = get_interquantile_range(
+                                    reactivities_array,
+                                    consider_non_zeros_only)
+    maximal_value = quantile_75 + interquantile_range * n_times_interquantile_range
+
+    maximal_value, n_outliers = set_up_threshold_for_outliers(
+                                  sorted_reactivities,
+                                  maximal_value,
+                                  n_positive_values,
+                                  max_fraction_of_outliers)
+    value_to_normalize_by = set_up_value_of_1_box_plot_norm(
+                                sorted_reactivities,
+                                n_outliers,
+                                n_positive_values,
+                                fraction_values_normalize_by
+                                )
+
+    if value_to_normalize_by == 0: # if all the non-zero values are considered outliers, set it up to the smallest outlier
+        value_to_normalize_by = sorted_reactivities[n_outliers - 1]
+
+    normalized_reactivities = reactivities_array / value_to_normalize_by
+    return normalized_reactivities
+
+
+def apply_normalization_to_every_element(mut_fractions_dict,
+                                         consider_non_zeros_only=True,
+                                         n_times_interquantile_range=1.5,
+                                         max_fraction_of_outliers=0.1,
+                                         fraction_values_normalize_by=0.1
+                                         ):
+    out_dict = {}
+    for el in mut_fractions_dict:
+        out_dict[el] = dms_normalize_box_plot(
+                           mut_fractions_dict[el],
+                           consider_non_zeros_only = consider_non_zeros_only,
+                           n_times_interquantile_range = n_times_interquantile_range,
+                           max_fraction_of_outliers = max_fraction_of_outliers,
+                           fraction_values_normalize_by = fraction_values_normalize_by
+                           )
+    return out_dict
+
+
+def set_non_AC_reactivities_to_neg_values(mut_fractions_dict,
+                                          AC_mask_dict,
+                                          unknown_position_value = -999):
+    out_dict = {}
+
+    for el in mut_fractions_dict:
+        current_frequencies = mut_fractions_dict[el]
+        current_frequencies[np.invert(AC_mask_dict[el])] = unknown_position_value
+        out_dict[el] = current_frequencies
+
+    return out_dict
+
+
+def separate_profiles_dict_by_n_covered_positions(mut_fractions_dict,
+                                                  number_positions_covered_dict,
+                                                  threshold):
+    high_cov_dict = {}
+    low_cov_dict = {}
+
+    for el in mut_fractions_dict:
+        if number_positions_covered_dict[el] >= threshold:
+            high_cov_dict[el] = mut_fractions_dict[el]
+        else:
+            low_cov_dict[el] = mut_fractions_dict[el]
+    return high_cov_dict, low_cov_dict

@@ -460,3 +460,49 @@ def plot_network_clusters_ground_truth(graph, position, ax,
     nx.draw_networkx_edges(graph, position, ax = ax, alpha=.5, edge_color=edge_color, edge_cmap=edge_cmap)
     nx.draw_networkx_nodes(graph, position, ax = ax, node_size=node_size, node_color=node_color)
     nx.draw_networkx_labels(graph, position, ax = ax, labels={node: str(node) for node in graph.nodes()})
+
+
+def visualize_all_in_one_pdf(array_1_raw,
+                             array_2_raw,
+                             n_elements,
+                             x_dimension=10,
+                             do_scale=False,
+                             do_return=True):
+    if do_scale:
+        array_1 = array_1_raw / array_1_raw.sum(axis=1)[:, np.newaxis]
+        array_2 = array_2_raw / array_2_raw.sum(axis=1)[:, np.newaxis]
+    else:
+        array_1 = array_1_raw.copy()
+        array_2 = array_2_raw.copy()
+
+    y_dimension = x_dimension * n_elements / (2 * array_1.shape[1] + 2)
+    fig, axs = plt.subplots(nrows=1, ncols=2, figsize=(x_dimension, y_dimension))
+
+    axs[0].imshow(array_1[0:n_elements, ],
+                  cmap='binary')
+    axs[0].set_yticks(np.arange(n_elements))
+    axs[0].set_yticklabels(np.arange(n_elements), fontdict=None, minor=False)
+    axs[0].set_title("Replicate 1")
+
+    axs[1].imshow(array_2[0:n_elements, ],
+                  cmap='binary')
+    axs[1].set_yticks(np.arange(n_elements))
+    axs[1].set_yticklabels(np.arange(n_elements), fontdict=None, minor=False)
+    axs[1].set_title("Replicate 2")
+
+    if do_return:
+        return fig
+    else:
+        plt.show()
+
+
+def plot_shape_profile(inp_array, ax, do_return = True):
+    curr_non_neg_array = inp_array.copy()
+    curr_non_neg_array[curr_non_neg_array < 0] = 0
+    if ax is None:
+        fig, ax = plt.subplots(nrows=1, ncols=1, figsize=(12, 4))
+    ax.scatter(np.arange(curr_non_neg_array.shape[0]), curr_non_neg_array)
+    if do_return:
+        return ax
+    else:
+        plt.show()
