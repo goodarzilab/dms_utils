@@ -7,6 +7,8 @@ import itertools
 import copy
 import sys
 import networkx as nx
+import os
+import pickle
 
 
 def convert_bitstring_to_numpy(inp_string):
@@ -453,3 +455,24 @@ def erdos_renyi_modularity(graph, communities):
     else:
         score = (1 / m) * q
     return score
+
+
+def pad_shape_profiles_to_reference_sequence(inp_folder,
+                                             out_folder,
+                                             sequence_length,
+                                             subseq_coordinates,
+                                             fill_unknown_with = -999,
+                                             old_suffix = "_shape_profile.pickle",
+                                             new_suffix = "_shape_profile_padded.pickle"):
+    for short_filename in os.listdir(inp_folder):
+        if not short_filename.endswith(old_suffix):
+            continue
+        input_filename = os.path.join(inp_folder, short_filename)
+        output_filename = os.path.join(out_folder, short_filename.replace(old_suffix, new_suffix))
+        curr_shape_profile_dict = pickle.load(open(input_filename, 'rb'))
+        assert len(curr_shape_profile_dict) == 1
+        curr_profile = curr_shape_profile_dict[list(curr_shape_profile_dict.keys())[0]]
+        full_profile = np.full(sequence_length, fill_unknown_with, dtype=np.float)
+        full_profile[subseq_coordinates[0] : subseq_coordinates[1]] = curr_profile
+        new_dict = {list(curr_shape_profile_dict.keys())[0] : full_profile}
+        pickle.dump(new_dict, open(output_filename, 'wb'))
