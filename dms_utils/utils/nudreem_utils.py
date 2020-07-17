@@ -461,6 +461,7 @@ def pad_shape_profiles_to_reference_sequence(inp_folder,
                                              out_folder,
                                              sequence_length,
                                              subseq_coordinates,
+                                             desired_dict_key = None,
                                              fill_unknown_with = -999,
                                              old_suffix = "_shape_profile.pickle",
                                              new_suffix = "_shape_profile_padded.pickle"):
@@ -474,5 +475,9 @@ def pad_shape_profiles_to_reference_sequence(inp_folder,
         curr_profile = curr_shape_profile_dict[list(curr_shape_profile_dict.keys())[0]]
         full_profile = np.full(sequence_length, fill_unknown_with, dtype=np.float)
         full_profile[subseq_coordinates[0] : subseq_coordinates[1]] = curr_profile
-        new_dict = {list(curr_shape_profile_dict.keys())[0] : full_profile}
+        if not desired_dict_key is None:
+            dict_key = desired_dict_key
+        else:
+            dict_key = list(curr_shape_profile_dict.keys())[0]
+        new_dict = {dict_key : full_profile}
         pickle.dump(new_dict, open(output_filename, 'wb'))

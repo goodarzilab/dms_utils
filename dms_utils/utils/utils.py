@@ -1111,6 +1111,7 @@ def dms_normalize_box_plot(reactivities_array,
                         n_times_interquantile_range = 1.5,
                         max_fraction_of_outliers = 0.1,
                         fraction_values_normalize_by = 0.1,
+                        negative_value = -999
                         ):
     n_positive_values = (reactivities_array > 0).sum()
     if n_positive_values == 0: # if there aren't any non-zero values at all
@@ -1138,6 +1139,7 @@ def dms_normalize_box_plot(reactivities_array,
         value_to_normalize_by = sorted_reactivities[n_outliers - 1]
 
     normalized_reactivities = reactivities_array / value_to_normalize_by
+    normalized_reactivities[reactivities_array < 0] = negative_value
     return normalized_reactivities
 
 
