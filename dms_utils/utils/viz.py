@@ -497,6 +497,54 @@ def visualize_all_in_one_pdf(array_1_raw,
         plt.show()
 
 
+
+def visualize_real_and_shuffled_together(fr_short_names_set,
+                                         rep_1_df, rep_2_df,
+                                         chi_square_df,
+                                        x_dimension=20,
+                                        do_scale=False,
+                                        do_return=False
+                                         ):
+    fr_short_names_list = sorted(list(fr_short_names_set))
+    fr_original_names_list = ["%s%s" % (x, "_original") for x in fr_short_names_list]
+    sub_chi_df = chi_square_df.loc[fr_original_names_list].sort_values(by = 'dna_chi_stat', ascending = False)
+    original_fragments_order = sub_chi_df.index.tolist()
+    shuffled_fragments_order = [x.replace("_original", "_shuffling_0") for x in original_fragments_order]
+    rep_1_df_original = rep_1_df.loc[original_fragments_order].to_numpy()
+    rep_1_df_shuffled = rep_1_df.loc[shuffled_fragments_order].to_numpy()
+    rep_2_df_original = rep_2_df.loc[original_fragments_order].to_numpy()
+    rep_2_df_shuffled = rep_2_df.loc[shuffled_fragments_order].to_numpy()
+
+    if do_scale:
+        rep_1_df_original = rep_1_df_original / rep_1_df_original.sum(axis=1)[:, np.newaxis]
+        rep_1_df_shuffled = rep_1_df_shuffled / rep_1_df_shuffled.sum(axis=1)[:, np.newaxis]
+        rep_2_df_original = rep_2_df_original / rep_2_df_original.sum(axis=1)[:, np.newaxis]
+        rep_2_df_shuffled = rep_2_df_shuffled / rep_2_df_shuffled.sum(axis=1)[:, np.newaxis]
+
+    n_elements = len(fr_short_names_list)
+    y_dimension = x_dimension * n_elements / (2 * rep_1_df.shape[1] + 2) * 2
+    fig, axs = plt.subplots(nrows=1, ncols=4, figsize=(x_dimension, y_dimension))
+    arrays_to_plot = [rep_1_df_original, rep_1_df_shuffled, rep_2_df_original, rep_2_df_shuffled]
+    names_to_plot = ["Original, replicate 1",
+                     "Shuffled, replicate 1",
+                     "Original, replicate 2",
+                     "Shuffled, replicate 2"
+                     ]
+
+    for i in range(4):
+        axs[i].imshow(arrays_to_plot[i],
+                      cmap='binary')
+        axs[i].set_yticks(np.arange(n_elements))
+        axs[i].set_yticklabels(np.arange(n_elements), fontdict=None, minor=False)
+        axs[i].set_title(names_to_plot[i])
+
+    if do_return:
+        return fig
+    else:
+        plt.show()
+
+
+
 def plot_shape_profile(inp_array, ax, do_return = True):
     curr_non_neg_array = inp_array.copy()
     curr_non_neg_array[curr_non_neg_array < 0] = 0

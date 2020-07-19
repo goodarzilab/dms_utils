@@ -1186,3 +1186,31 @@ def separate_profiles_dict_by_n_covered_positions(mut_fractions_dict,
         else:
             low_cov_dict[el] = mut_fractions_dict[el]
     return high_cov_dict, low_cov_dict
+
+
+def get_correlations_dict(inp_fragments_set,
+                          inp_df,
+                          suffix_tuple):
+    correlations_dict = {}
+    assert len(suffix_tuple) == 2
+    for fr in inp_fragments_set:
+        fr_name_1 = "%s%s" % (fr, suffix_tuple[0])
+        fr_name_2 = "%s%s" % (fr, suffix_tuple[1])
+        sub_series_1 = inp_df.loc[fr_name_1]
+        sub_series_2 = inp_df.loc[fr_name_2]
+        assert isinstance(sub_series_1, pd.Series)
+        assert isinstance(sub_series_2, pd.Series)
+        current_correlation, pv = scipy.stats.pearsonr(sub_series_1, sub_series_2)
+        correlations_dict[fr] = current_correlation
+    return correlations_dict
+
+
+def dict_to_values_sorted_by_keys(inp_dict):
+    values_list = []
+    for k in sorted(list(inp_dict.keys())):
+        values_list.append(inp_dict[k])
+    return values_list
+
+
+def choose_dictionary_subset_by_function(inp_dict, inp_func):
+    return {x : inp_dict[x] for x in inp_dict if inp_func(inp_dict[x])}
