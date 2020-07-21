@@ -39,6 +39,17 @@ def test_filter_by_positions_surrounding_mutations():
     assert (where_too_close == np.array([1,0,1,0,0], dtype=np.bool)).all()
 
 
+def test_averaging_shape_profiles():
+    first_profile = np.array([-999, 0, 1, 0, 0.047, 0.7, 0.01])
+    second_profile = np.array([-999, 0, 0, 0.03, 0.011, 0.3, 0.21])
+    expected_profile = np.array([-999, 0, 1, 0.03, 0.022737634, 0.458257569495, 0.21])
+    res = dms_utils.average_dms_profiles(first_profile, second_profile,
+                                         distributions_border=0.048)
+    assert np.isclose(res, expected_profile, atol=1e-6).all()
+
+
 if __name__ == "__main__":
     test_filter_by_distance_between_mutations()
     test_filter_by_positions_surrounding_mutations()
+    test_averaging_shape_profiles()
+

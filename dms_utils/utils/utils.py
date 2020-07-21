@@ -1214,3 +1214,76 @@ def dict_to_values_sorted_by_keys(inp_dict):
 
 def choose_dictionary_subset_by_function(inp_dict, inp_func):
     return {x : inp_dict[x] for x in inp_dict if inp_func(inp_dict[x])}
+
+
+def log_average(value_1, value_2):
+    assert value_1 > 0
+    assert value_2 > 0
+    log_average = (np.log(value_1) + np.log(value_2)) / 2
+    return np.exp(log_average)
+
+
+def average_dms_profiles(profile_1, profile_2,
+                        distributions_border = 0.048,
+                        do_prefer_right_distribution = True):
+    assert profile_1.shape[0] == profile_2.shape[0]
+    new_profile = np.zeros_like(profile_1)
+
+    for i in range(profile_1.shape[0]):
+        value_1 = profile_1[i]
+        value_2 = profile_2[i]
+
+        # if nans:
+        if np.isnan(value_1) or np.isnan(value_2):
+            if np.isnan(value_1):
+                if np.isnan(value_2):
+                    new_profile[i] = 0
+                    continue
+                else:
+                    new_profile[i] = value_2
+                    continue
+            if np.isnan(value_2):
+                new_profile[i] = value_1
+                continue
+
+        # if this is not A or C
+        if value_1 < 0 and value_2 < 0:
+            new_profile[i] = value_1
+            continue
+
+        # if both are zeros
+        if value_1 == 0 and value_2 == 0:
+            new_profile[i] = 0
+            continue
+
+        # if just one is zero
+        if value_1 == 0:
+            new_profile[i] = value_2
+            continue
+        elif value_2 == 0:
+            new_profile[i] = value_1
+            continue
+
+        # do we prefer the right distribution over the left one
+        if do_prefer_right_distribution:
+            # which distributions do values belong to
+            is_value_1_in_right_distr = value_1 >= distributions_border
+            is_value_2_in_right_distr = value_2 >= distributions_border
+
+            # if they both come from the same distributions
+            if is_value_1_in_right_distr == is_value_2_in_right_distr:
+                new_profile[i] = log_average(value_1, value_2)
+                continue
+
+            if is_value_1_in_right_distr:
+                new_profile[i] = value_1
+                continue
+            elif is_value_2_in_right_distr:
+                new_profile[i] = value_2
+                continue
+        else:
+            new_profile[i] = log_average(value_1, value_2)
+            continue
+
+    return new_profile
+
