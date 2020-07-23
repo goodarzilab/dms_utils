@@ -1287,3 +1287,149 @@ def average_dms_profiles(profile_1, profile_2,
 
     return new_profile
 
+
+def print_vien_diagram_two_dfs(df_1, df_2,
+                               df_1_name, df_2_name,
+                               mask_column,
+                               column_of_interest):
+    df_1_covered = df_1[mask_column]
+    df_2_covered = df_2[mask_column]
+    both = (df_1_covered[column_of_interest] & df_2_covered[column_of_interest]).sum()
+    first = (df_1_covered[column_of_interest] & ~df_2_covered[column_of_interest]).sum()
+    second = (~df_1_covered[column_of_interest] & df_2_covered[column_of_interest]).sum()
+
+    string_to_print = ""
+    string_to_print += "Total number of elements for comparison: %d\n" % (mask_column.sum())
+    string_to_print += "True in %s dataframe only: %d\n" % (df_1_name, first)
+    string_to_print += "True in %s dataframe only: %d\n" % (df_2_name, second)
+    string_to_print += "True in both dataframes: %d\n" % (both)
+    print(string_to_print)
+
+
+def classify_fragments_by_switch_categories(inp_df):
+    pr_sec_switches_dict = {}
+    not_taken_care_of = 0
+    for i, row in inp_df.iterrows():
+
+        # if the element is not in the chosen set, skip
+        if not row['reg_and_mibp_chosen']:
+            pr_sec_switches_dict[row.name] = (None, None)
+            continue
+
+        # # if the element has not been identified as positive by MIBP in all the three cases
+        # if not row['mibp_rep_1'] or not row['mibp_rep_2'] or not row['mibp_avg']:
+        #     pr_sec_switches_dict[row.name] = (None, None)
+        #     continue
+
+        # if neither of the two replicates is covered, skip
+        if row['reps_covered'] == 0:
+            pr_sec_switches_dict[row.name] = (None, None)
+            continue
+        # if only one replicate is covered
+        elif row['reps_covered'] == 1:
+            # which replicate is covered
+            if row['covered_1']:
+                primary_switch = 'rep_1'
+            else:
+                primary_switch = 'rep_2'
+            pr_sec_switches_dict[row.name] = (primary_switch, None)
+            continue
+
+        # at this point both replicates are covered
+        # if the predictions for two replicates are the same
+        if row['reps_same_prediction']:
+            pr_sec_switches_dict[row.name] = ('rep_1', None)
+            continue
+
+        # at this the predictions for two replicates are different
+        # if averaged profile prediction passes the major filter
+        if row['avg_major']:
+            pr_sec_switches_dict[row.name] = ('avg', None)
+            continue
+        # if averaged profile prediction passes the reciprocal filter
+        if row['avg_reciprocal']:
+            pr_sec_switches_dict[row.name] = ('avg', None)
+            continue
+
+        # at this point the predictions from two replicates are different
+        # and the average profile prediction doesn't pass any filters
+
+        # if none of the replicates is reciprocal
+        if (not row['r1_reciprocal']) and (not row['r2_reciprocal']):
+            pr_sec_switches_dict[row.name] = ('avg', None)
+            continue
+
+        # if only one passes the major filter (there can't be two cause they would be equal to each other)
+        if row['r1_major']:
+            # if there is no MIBP output for average profile
+            if not row['mibp_avg']:
+                pr_sec_switches_dict[row.name] = ('rep_1', None)
+                continue
+            # if the output for average profile is too similar
+            if row['small_distance_rep_1_avg']:
+                pr_sec_switches_dict[row.name] = ('rep_1', None)
+                continue
+            pr_sec_switches_dict[row.name] = ('rep_1', 'avg')
+            continue
+        elif row['r2_major']:
+            # if there is no MIBP output for average profile
+            if not row['mibp_avg']:
+                pr_sec_switches_dict[row.name] = ('rep_1', None)
+                continue
+            # if the output for average profile is too similar
+            if row['small_distance_rep_2_avg']:
+                pr_sec_switches_dict[row.name] = ('rep_2', None)
+                continue
+            pr_sec_switches_dict[row.name] = ('rep_2', 'avg')
+            continue
+
+        # if both replicates pass the reciprocal filter
+        if row['r1_reciprocal'] and row['r2_reciprocal']:
+            # if the folded structures are very similar
+            if row['small_distance_rep_1_rep_2']:
+                pr_sec_switches_dict[row.name] = ('rep_1', None)
+                continue
+            pr_sec_switches_dict[row.name] = ('rep_1', 'rep_2')
+            continue
+
+        # if only one passes the reciprocal filter
+        if row['r1_reciprocal']:
+            # if there is no MIBP output for average profile
+            if not row['mibp_avg']:
+                pr_sec_switches_dict[row.name] = ('rep_1', None)
+                continue
+            # if the output for average profile is too similar
+            if row['small_distance_rep_1_avg']:
+                pr_sec_switches_dict[row.name] = ('rep_1', None)
+                continue
+            pr_sec_switches_dict[row.name] = ('rep_1', 'avg')
+            continue
+        elif row['r2_reciprocal']:
+            # if there is no MIBP output for average profile
+            if not row['mibp_avg']:
+                pr_sec_switches_dict[row.name] = ('rep_1', None)
+                continue
+            # if the output for average profile is too similar
+            if row['small_distance_rep_2_avg']:
+                pr_sec_switches_dict[row.name] = ('rep_2', None)
+                continue
+            pr_sec_switches_dict[row.name] = ('rep_2', 'avg')
+            continue
+
+        not_taken_care_of += 1
+
+    assert not_taken_care_of == 0
+
+    pr_sec_switches_dict_reformatted = {}
+    for fr in pr_sec_switches_dict:
+        pr_sec_switches_dict_reformatted[fr] = {}
+        pr_sec_switches_dict_reformatted[fr]['primary_switch'] = pr_sec_switches_dict[fr][0]
+        pr_sec_switches_dict_reformatted[fr]['secondary_switch'] = pr_sec_switches_dict[fr][1]
+
+    out_df = pd.DataFrame.from_dict(pr_sec_switches_dict_reformatted, orient = 'index')
+    out_df = out_df.fillna('')
+    return out_df
+
+
+
+
