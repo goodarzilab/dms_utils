@@ -1,6 +1,5 @@
 import os
 import numpy as np
-import dms_utils.utils.utils as utils
 import pandas as pd
 
 def read_fasta(infile):

@@ -468,7 +468,8 @@ def visualize_all_in_one_pdf(array_1_raw,
                              n_elements,
                              x_dimension=10,
                              do_scale=False,
-                             do_return=True):
+                             do_return=True,
+                             label = ""):
     if do_scale:
         array_1 = array_1_raw / array_1_raw.sum(axis=1)[:, np.newaxis]
         array_2 = array_2_raw / array_2_raw.sum(axis=1)[:, np.newaxis]
@@ -483,13 +484,13 @@ def visualize_all_in_one_pdf(array_1_raw,
                   cmap='binary')
     axs[0].set_yticks(np.arange(n_elements))
     axs[0].set_yticklabels(np.arange(n_elements), fontdict=None, minor=False)
-    axs[0].set_title("Replicate 1")
+    axs[0].set_title("Replicate 1 %s" % label)
 
     axs[1].imshow(array_2[0:n_elements, ],
                   cmap='binary')
     axs[1].set_yticks(np.arange(n_elements))
     axs[1].set_yticklabels(np.arange(n_elements), fontdict=None, minor=False)
-    axs[1].set_title("Replicate 2")
+    axs[1].set_title("Replicate 2 %s" % label)
 
     if do_return:
         return fig

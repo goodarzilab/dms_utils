@@ -1111,10 +1111,13 @@ def dms_normalize_box_plot(reactivities_array,
                         n_times_interquantile_range = 1.5,
                         max_fraction_of_outliers = 0.1,
                         fraction_values_normalize_by = 0.1,
-                        negative_value = -999
+                        negative_value = -999,
+                        do_return_value_to_normalize_by = False
                         ):
     n_positive_values = (reactivities_array > 0).sum()
     if n_positive_values == 0: # if there aren't any non-zero values at all
+        if do_return_value_to_normalize_by:
+            return reactivities_array, 0
         return reactivities_array
     sorted_reactivities = np.sort(reactivities_array)[::-1]
 
@@ -1140,6 +1143,8 @@ def dms_normalize_box_plot(reactivities_array,
 
     normalized_reactivities = reactivities_array / value_to_normalize_by
     normalized_reactivities[reactivities_array < 0] = negative_value
+    if do_return_value_to_normalize_by:
+        return normalized_reactivities, value_to_normalize_by
     return normalized_reactivities
 
 
@@ -1158,6 +1163,26 @@ def apply_normalization_to_every_element(mut_fractions_dict,
                            max_fraction_of_outliers = max_fraction_of_outliers,
                            fraction_values_normalize_by = fraction_values_normalize_by
                            )
+    return out_dict
+
+
+def get_values_to_normalize_by_for_every_element(mut_fractions_dict,
+                                         consider_non_zeros_only=True,
+                                         n_times_interquantile_range=1.5,
+                                         max_fraction_of_outliers=0.1,
+                                         fraction_values_normalize_by=0.1
+                                         ):
+    out_dict = {}
+    for el in mut_fractions_dict:
+        _, val = dms_normalize_box_plot(
+                           mut_fractions_dict[el],
+                           consider_non_zeros_only = consider_non_zeros_only,
+                           n_times_interquantile_range = n_times_interquantile_range,
+                           max_fraction_of_outliers = max_fraction_of_outliers,
+                           fraction_values_normalize_by = fraction_values_normalize_by,
+                           do_return_value_to_normalize_by = True
+                           )
+        out_dict[el] = val
     return out_dict
 
 
@@ -1356,7 +1381,12 @@ def classify_fragments_by_switch_categories(inp_df):
 
         # if none of the replicates is reciprocal
         if (not row['r1_reciprocal']) and (not row['r2_reciprocal']):
-            pr_sec_switches_dict[row.name] = ('avg', None)
+            # if there is mibp output for the averaged profile
+            if row['mibp_avg']:
+                pr_sec_switches_dict[row.name] = ('avg', None)
+                continue
+            # if there is not
+            pr_sec_switches_dict[row.name] = ('rep_1', None)
             continue
 
         # if only one passes the major filter (there can't be two cause they would be equal to each other)
