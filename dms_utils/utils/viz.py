@@ -1,10 +1,26 @@
 import os
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.image as img
+import matplotlib.cm as cm
+from matplotlib.colors import Normalize
+import pandas as pd
 import scipy
-import dms_utils.utils.utils as utils
+from subprocess import PIPE, run, Popen, call
 import networkx as nx
 import numbers
+
+from . import nudreem_utils
+from . import glob_vars
+from . import utils
+
+current_script_path = sys.argv[0]
+package_home_path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', '..', 'sw_finder'))
+if package_home_path not in sys.path:
+    sys.path.append(package_home_path)
+
+from sw_finder.utils import folding_api
 
 
 def plot_substitutions_along_transcript(ref_vec_loc, count_dict_loc):
@@ -399,9 +415,9 @@ def plot_graph_weighted_enges(G, ax,
         edge_color = nx.get_edge_attributes(G,attribute_name).values()
 
     nx.draw_spring(G,
-       edge_color=edge_color,
+       edge_color = edge_color,
        node_size=1,
-       edge_cmap=cmap,
+       edge_cmap = cmap,
        with_labels=True, ax = ax)
     return ax
 
@@ -633,3 +649,177 @@ def qqplot(x, y, quantiles=None, interpolation='nearest', ax=None, rug=False,
     # Draw the q-q plot
     ax.scatter(x_quantiles, y_quantiles, **kwargs)
     return ax
+
+def visualize_co_occurence_network_positions_of_interest(
+                            bitvect_example_array,
+                            positions_of_interest_list,
+                            ax = None
+                            ):
+    # subset to mutations only
+    bitvect_example_array_muts_only = np.zeros_like(bitvect_example_array)
+    bitvect_example_array_muts_only[bitvect_example_array == 1] = 1
+    bitvect_variable_muts_only_array = bitvect_example_array_muts_only[:, positions_of_interest_list]
+    # count unique mutation combinations and their weights
+    bitvect_unique_muts_only_array, bitvect_unique_muts_only_counts = np.unique(bitvect_variable_muts_only_array,
+                                                                                axis=0,
+                                                                                return_counts=True)
+    # build co-occurence tables
+    example_cooccurence_weighted = nudreem_utils.count_mutation_co_occurence(bitvect_unique_muts_only_array,
+                                                                             weights = bitvect_unique_muts_only_counts)
+    example_cooccurence_weighted_df = pd.DataFrame(data = example_cooccurence_weighted,
+                                         index = positions_of_interest_list,
+                                         columns = positions_of_interest_list)
+    # reformat it to the pairwise format
+    example_cooccurence_weighted_df_pairwise = nudreem_utils.reshape_co_occurence_df_to_pairwise(example_cooccurence_weighted_df)
+    # build the graph
+    G_co_occur_weighted = nx.from_pandas_edgelist(example_cooccurence_weighted_df_pairwise,
+                                                  edge_attr=True)
+    graph_plot = plot_graph_weighted_enges(G_co_occur_weighted, ax = ax, attribute_name='weight')
+    return graph_plot
+
+
+def scale_shape_values_to_RGB(shape_array, colormap):
+    out_colors = np.zeros((shape_array.shape[0], 3), dtype=np.float)
+    vmin = glob_vars._SHAPE_VMIN
+    vmax = glob_vars._SHAPE_VMAX
+    normalizer = Normalize(vmin, vmax)
+    norm_colormap = cm.ScalarMappable(norm=normalizer, cmap=colormap)
+
+    new_array = shape_array.copy()
+    sub_array = new_array[shape_array >= 0]
+    np.clip(sub_array, vmin, vmax)
+
+    for i in range(shape_array.shape[0]):
+        curr_value = shape_array[i]
+        if curr_value < vmin:
+            continue
+        if curr_value > vmax:
+            curr_value = vmax
+        # from here https://stackoverflow.com/questions/15140072/how-to-map-number-to-color-using-matplotlibs-colormap
+        r, g, b, alpha = norm_colormap.to_rgba(curr_value)
+        out_colors[i, 0] = r
+        out_colors[i, 1] = g
+        out_colors[i, 2] = b
+    return out_colors
+
+
+def turn_shape_array_into_ps_marks(shape_array, shape_colors,
+                                   do_shape_circle_stroke = False,
+                                   shape_circle_width = 16):
+    out_strings_array = []
+    if shape_array is None:
+        return ""
+    # available_data = shape_array >= 0
+    # shape_
+    for i in range(shape_array.shape[0]):
+        if shape_array[i] >= 0:
+            current_string = ""
+            if do_shape_circle_stroke:
+                current_string += "%d cmark " % (i+1)
+
+            current_colors_string = "%s %s %s" % \
+                (shape_colors[i, 0], shape_colors[i, 1], shape_colors[i, 2])
+            current_string += "%d %d %d %s omark " % \
+                              (i + 1, i + 1, shape_circle_width, current_colors_string)
+            #current_string = "%d %d RED Fomark " % (i + 1, i + 1)
+            out_strings_array.append(current_string)
+    out_string = "".join(out_strings_array)
+    return out_string
+
+
+def write_seq_str_file(temp_filename, fr_name, inp_seq, inp_str):
+    with open(temp_filename, 'w') as wf:
+        string_to_write = ">%s\n%s\n%s\n" % (fr_name, inp_seq, inp_str)
+        wf.write(string_to_write)
+
+
+def run_RNAplot(output_folder, temp_filename, ps_string, ViennaRNA_path, layout,
+                do_print_error = False):
+    RNAplot_path = os.path.join(ViennaRNA_path, "RNAplot")
+    plotting_arguments = [RNAplot_path, "--pre", ps_string, "-i", temp_filename, "--filename-full",
+                          "-o", "ps", "--layout-type", str(layout)]
+    plotting_result = run(args=plotting_arguments, stdout=PIPE, stderr=PIPE, cwd=output_folder)
+    if do_print_error:
+        print(plotting_result.stderr)
+    output_filename = os.path.join(output_folder, "%s_ss.ps" % (temp_filename.split('/')[-1].replace(".txt","")))
+    return output_filename
+
+
+def draw_structure_with_shape(fr_name, sequence, string, shape_array,
+                       ViennaRNA_path, temp_files_folder, output_folder,
+                       cmap = 'YlOrRd', layout = 4):
+    shape_colors = scale_shape_values_to_RGB(shape_array, cmap)
+    shape_ps_string = turn_shape_array_into_ps_marks(shape_array, shape_colors)
+    ps_string = shape_ps_string
+    temp_filename = os.path.join(temp_files_folder, "%s.txt" % (fr_name))
+    write_seq_str_file(temp_filename, fr_name, sequence, string)
+    output_filename = run_RNAplot(output_folder, temp_filename, ps_string, ViennaRNA_path, layout)
+    os.remove(temp_filename)
+    return output_filename
+
+
+def visualize_alt_structures_from_draco(windows_list,
+                            full_sequence,
+                            pics_folder,
+                            temp_files_folder = "/avicenna/khorms/temp/RNAstructure",
+                            RNAstructure_path = '/avicenna/khorms/programs/RNAstructure',
+                            ViennaRNA_path = "/avicenna/khorms/programs/anaconda3/envs/bcl2fastq_env/bin",
+                            imagemagick_path = '/usr/local/bin/',
+                            do_print_window = True,
+                            do_print_structures = True,
+                            ):
+    for i, window_dict in enumerate(windows_list):
+        start = window_dict['start']
+        end = window_dict['end']
+        if do_print_window:
+            print("Window start: %d, end: %d" % (start, end))
+        curr_sequence = full_sequence[start: end]
+        fig, axs = plt.subplots(nrows=2, ncols=len(windows_list[i]['counts']), figsize=(20, 15))
+
+        for k, curr_counts in enumerate(windows_list[i]['counts']):
+            curr_fraction = windows_list[i]['stoichiometries'][k]
+            fraction_string = "Fraction: {}%".format(round(curr_fraction * 100))
+            sn = "window_%d_structure_%d" % (i, k)
+            non_neg_counts = np.array(curr_counts).copy()
+            non_neg_counts[non_neg_counts == 0] = -999
+            normalized_profile = utils.dms_normalize_box_plot(non_neg_counts)
+            sequence_filename = folding_api.write_fragment_sequence_file(sn, curr_sequence, temp_files_folder)
+            shape_filename = folding_api.write_shape_constraints_RNAstructure(sn, normalized_profile, temp_files_folder)
+            mea_string_full = folding_api.fold_perturbation_shape_MEA(sequence_filename,
+                                                                      shape_filename,
+                                                                      temp_files_folder,
+                                                                      RNAstructure_path)
+            mea_string = mea_string_full[mea_string_full.index('\n'):].replace("\n", "")
+            os.remove(sequence_filename)
+            os.remove(shape_filename)
+            if do_print_structures:
+                print("Structure %d; " % (k + 1) + fraction_string)
+                print(mea_string)
+            bp_probs = folding_api.launch_folding_get_probabilities_RNAstructure(
+                sn,
+                curr_sequence,
+                {},
+                normalized_profile,
+                temp_files_folder=temp_files_folder,
+                no_constraints=True,
+                RNAstructure_path=RNAstructure_path,
+            )
+            axs[0, k].imshow(bp_probs, cmap='binary')
+            axs[0, k].set_title(fraction_string, fontsize=20)
+            axs[0, k].xaxis.set_tick_params(labelsize=14)
+            axs[0, k].yaxis.set_tick_params(labelsize=14)
+            curr_pic = draw_structure_with_shape(sn, curr_sequence, mea_string, normalized_profile,
+                                                         ViennaRNA_path, temp_files_folder, pics_folder,
+                                                         cmap='YlOrRd', layout=4)
+            curr_pic_png = curr_pic.replace(".ps", "png")
+            convert_command_major_args = [os.path.join(imagemagick_path, "convert"), curr_pic, curr_pic_png]
+            major_result = run(args=convert_command_major_args, stdout=PIPE, stderr=PIPE)
+            im = img.imread(curr_pic_png)
+            axs[1, k].imshow(im)
+            axs[1, k].axis('off')
+            axs[1, k].set_title(fraction_string, fontsize=20)
+
+        plt.tight_layout()
+        plt.show()
+
+

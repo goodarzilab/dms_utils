@@ -717,17 +717,21 @@ def reads_to_bitvector_arrays(inp_filename,
 
                 read_count += 1
                 if read_count == stop_after_N_reads:
+                    print("Stopped after stop_after_N_reads ", stop_after_N_reads)
                     break
 
         count_coverage = bam_loc.count_coverage(contig = el_name,
                                                           start = start_poition, stop = end_position,
                                                           quality_threshold = base_quality_threshold,
                                                           read_callback='all')
+
+
         assert read_count == curr_reads_count
         assert compare_expected_observed_mutation_counts(curr_bitvectors_array,
                                                         count_coverage,
                                                          accepted_disagreement_fraction,
                                                          do_print = do_print)
+        print(curr_bitvectors_array.shape)
         bitvectors_out_dict[el_name] = curr_bitvectors_array
 
         el_counter += 1

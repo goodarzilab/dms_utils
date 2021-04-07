@@ -26,3 +26,7 @@ bitstring_letters_to_num = {
     'T' : 1
 }
 
+# for making pallettes for SHAPE data
+_SHAPE_VMIN = 0
+_SHAPE_VMAX = 1
+
