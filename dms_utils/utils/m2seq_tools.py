@@ -1,4 +1,4 @@
-
+import numpy as np
 
 def generate_standard_commands_per_sample(
                                 sample,
@@ -92,3 +92,14 @@ def generate_standard_commands_per_sample(
     commands_full_string = "\n".join(commands)
     print(commands_full_string)
     print()
+
+
+def find_spans_condition_array(condition_flat):
+    spans_list = []
+    for element in np.unique(condition_flat):
+        where_array = np.where(condition_flat == element)[0]
+        where_min = where_array[0]
+        where_max = where_array[-1]
+        spans_list.append("%d:%d" % (where_min + 1, where_max + 1))
+    string_spans = ", ".join(spans_list)
+    return string_spans
