@@ -1,20 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
-  <component name="PublishConfigData" autoUpload="Always" promptOnRemoteOverwrite="CHECK_TIMESTAMP" serverName="avicenna" overwriteAll="false" autoUploadExternalChanges="true">
+  <component name="PublishConfigData" autoUpload="Always" promptOnRemoteOverwrite="CHECK_TIMESTAMP" serverName="avicenna" overwriteAll="false" remoteFilesAllowedToDisappearOnAutoupload="false" autoUploadExternalChanges="true">
     <serverData>
       <paths name="avicenna">
         <serverdata>
           <mappings>
             <mapping deploy="dms_utils" local="$PROJECT_DIR$" web="/" />
             <mapping local="" />
-          </mappings>
-        </serverdata>
-      </paths>
-      <paths name="rumi">
-        <serverdata>
-          <mappings>
-            <mapping deploy="dms_utils" local="$PROJECT_DIR$" web="/" />
-            <mapping deploy="" local="" />
           </mappings>
         </serverdata>
       </paths>
